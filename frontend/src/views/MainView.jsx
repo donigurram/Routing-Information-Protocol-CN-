@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { useSimulation } from "../hooks/useSimulation";
 import { useRouting } from "../hooks/useRouting";
@@ -54,9 +54,22 @@ export default function MainView() {
         mode, setMode, connectFrom, pendingCost, setPendingCost, 
         selectedRouter, setSelectedRouter,
         handleCanvasClick, handleRouterClick, handleLinkClick,
-        handleRouterMouseDown, handleMouseMove, handleMouseUp,
-        loadPreset, clearAll
+        handleCanvasMouseDown, handleRouterMouseDown, handleMouseMove, handleMouseUp,
+        loadPreset, clearAll, pan, isPanning,
+        editingLink, setEditingLink, updateLinkCost,
+        undo, canUndo
     } = useTopology(routers, setRouters, links, setLinks, setPackets, setActivePath, setPingResult, resetSim);
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                if (canUndo) undo();
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [canUndo, undo]);
 
     const isPathLink = (la, lb) => {
         for (let i = 0; i < activePath.length - 1; i++)
@@ -107,6 +120,20 @@ export default function MainView() {
                     <div style={{ marginLeft: "auto", padding: "3px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, background: mc + "20", color: mc, border: `1px solid ${mc}44` }}>
                         {modeLabels[mode] || "UNKNOWN"}
                     </div>
+                    <button 
+                        onClick={undo}
+                        disabled={!canUndo}
+                        title="Undo (Ctrl+Z)"
+                        style={{
+                            padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: canUndo ? "pointer" : "not-allowed",
+                            background: canUndo ? T.surfaceAlt : "transparent",
+                            color: canUndo ? T.text : T.textFaint,
+                            border: `1.5px solid ${canUndo ? T.border : "transparent"}`,
+                            transition: "all .2s", display: "flex", alignItems: "center", gap: 5
+                        }}
+                    >
+                        ↶ UNDO
+                    </button>
                     <ThemeToggle dark={dark} onToggle={() => setDark(d => !d)} T={T} />
                 </div>
 
@@ -122,17 +149,21 @@ export default function MainView() {
                 <svg
                     ref={svgRef}
                     width="100%" height="100%"
-                    style={{ display: "block", cursor: mode === "add" ? "crosshair" : mode === "move" ? "grab" : "pointer" }}
+                    style={{ display: "block", cursor: isPanning ? "grabbing" : mode === "add" ? "crosshair" : mode === "move" ? "grab" : "pointer" }}
                     onClick={e => handleCanvasClick(e, svgRef)}
+                    onMouseDown={handleCanvasMouseDown}
                     onMouseMove={e => handleMouseMove(e, svgRef)}
                     onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseUp}
                 >
                     <defs>
-                        <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+                        <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse" patternTransform={`translate(${pan.x}, ${pan.y})`}>
                             <path d="M30 0L0 0 0 30" fill="none" stroke={T.gridLine} strokeWidth="0.8" />
                         </pattern>
                     </defs>
                     <rect width="100%" height="100%" fill="url(#grid)" />
+
+                    <g transform={`translate(${pan.x}, ${pan.y})`}>
 
                     {/* Links */}
                     {links.map(l => {
@@ -149,10 +180,34 @@ export default function MainView() {
                                 <rect x={mx - 12} y={my - 9} width={24} height={16} rx={4}
                                     fill={l.failed ? T.dangerBg : isPath ? "#FEF3C7" : T.surface}
                                     stroke={l.failed ? T.danger + "66" : isPath ? "#F59E0B" : T.border} strokeWidth={1} />
-                                <text x={mx} y={my + 4} textAnchor="middle" fontSize={9} fontWeight={700}
-                                    fill={l.failed ? T.danger : isPath ? "#D97706" : T.textMuted} fontFamily="monospace">
-                                    {l.failed ? "✕" : l.cost}
-                                </text>
+                                {editingLink === l.id && !l.failed ? (
+                                    <foreignObject x={mx - 12} y={my - 9} width={24} height={16}>
+                                        <input
+                                            autoFocus
+                                            defaultValue={l.cost}
+                                            onFocus={e => e.target.select()}
+                                            onMouseDown={e => e.stopPropagation()}
+                                            onClick={e => e.stopPropagation()}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') updateLinkCost(l.id, e.target.value);
+                                                if (e.key === 'Escape') setEditingLink(null);
+                                            }}
+                                            onBlur={e => updateLinkCost(l.id, e.target.value)}
+                                            style={{
+                                                width: '100%', height: '100%', border: 'none', background: 'transparent',
+                                                color: isPath ? "#D97706" : T.textMuted,
+                                                textAlign: 'center', fontSize: 9, fontWeight: 700,
+                                                fontFamily: 'monospace', outline: 'none', padding: 0, margin: 0
+                                            }}
+                                            min={1} max={15} type="number"
+                                        />
+                                    </foreignObject>
+                                ) : (
+                                    <text x={mx} y={my + 4} textAnchor="middle" fontSize={9} fontWeight={700}
+                                        fill={l.failed ? T.danger : isPath ? "#D97706" : T.textMuted} fontFamily="monospace">
+                                        {l.failed ? "✕" : l.cost}
+                                    </text>
+                                )}
                             </g>
                         );
                     })}
@@ -201,6 +256,7 @@ export default function MainView() {
                             Click canvas to add routers → Connect → Simulate
                         </text>
                     )}
+                    </g>
                 </svg>
             </div>
 
