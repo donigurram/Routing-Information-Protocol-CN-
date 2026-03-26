@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import PingTab from "./tabs/PingTab";
 import TableTab from "./tabs/TableTab";
 
@@ -77,8 +77,10 @@ export default function ControlPanel({
     routePoisoning,
     setRoutePoisoning,
     loadPreset,
+    spawnPreset,
     clearAll
 }) {
+    const [presetSize, setPresetSize] = useState(5);
     const TABS = [
         { k: "ping", label: "PING", icon: "🏓" },
         { k: "table", label: "TABLE", icon: "⊞" },
@@ -237,18 +239,22 @@ export default function ControlPanel({
 
                         {/* Presets & clear */}
                         <div style={{ marginTop: 12, borderTop: `1px solid ${T.border}`, paddingTop: 10 }}>
-                            <div style={{ fontSize: 9, fontWeight: 700, color: T.textFaint, letterSpacing: "1.5px", marginBottom: 7 }}>PRESETS</div>
+
+                            <div style={{ fontSize: 9, fontWeight: 700, color: T.textFaint, letterSpacing: "1.5px", marginBottom: 7, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span>SPAWN ROUTERS</span>
+                                <input type="number" min={1} max={20} value={presetSize} onChange={e => setPresetSize(parseInt(e.target.value) || 1)} style={{ width: 40, padding: 2, borderRadius: 4, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: 10, fontFamily: "monospace", textAlign: "center" }} title="Number of routers to spawn" />
+                            </div>
                             <div style={{ display: "flex", gap: 5, marginBottom: 7 }}>
                                 {[["▬", "linear"], ["○", "ring"], ["⬡", "mesh"]].map(([icon, key]) => (
-                                    <button key={key} onClick={() => loadPreset(key)} style={{
-                                        flex: 1, padding: "6px 4px", border: `1.5px solid ${T.border}`,
+                                    <button key={key} onClick={() => spawnPreset(key, presetSize)} style={{
+                                        flex: 1, padding: "6px 4px", border: `1px dashed ${T.border}`,
                                         borderRadius: 7, cursor: "pointer", fontSize: 10, fontWeight: 600,
                                         fontFamily: "'JetBrains Mono', monospace",
-                                        background: T.bg, color: T.textMuted,
+                                        background: "transparent", color: T.textMuted,
                                         transition: "all .15s",
                                     }}
-                                        onMouseEnter={e => { e.currentTarget.style.background = T.accentBg; e.currentTarget.style.borderColor = T.accentBdr; e.currentTarget.style.color = T.accent; }}
-                                        onMouseLeave={e => { e.currentTarget.style.background = T.bg; e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textMuted; }}
+                                        onMouseEnter={e => { e.currentTarget.style.background = T.surfaceAlt; e.currentTarget.style.borderColor = T.accentBdr; e.currentTarget.style.color = T.accent; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textMuted; }}
                                     >{icon} {key.charAt(0).toUpperCase() + key.slice(1)}</button>
                                 ))}
                             </div>

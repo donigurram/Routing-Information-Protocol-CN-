@@ -45,7 +45,7 @@ export function makeTheme(dark) {
 }
 
 export function useTheme() {
-    const [dark, setDark] = useState(false);
+    const [dark, setDark] = useState(true);
     const T = makeTheme(dark);
     return { dark, setDark, T };
 }

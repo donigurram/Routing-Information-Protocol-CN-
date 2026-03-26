@@ -9,6 +9,57 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
     const [dragOff, setDragOff] = useState({ x: 0, y: 0 });
     const [pendingCost, setPendingCost] = useState(1);
     const [selectedRouter, setSelectedRouter] = useState(null);
+    const [customPresets, setCustomPresets] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('ripCustomPresets')) || []; }
+        catch { return []; }
+    });
+
+    const saveCustomPreset = () => {
+        if (routers.length === 0) return;
+        const minX = Math.min(...routers.map(r => r.x));
+        const minY = Math.min(...routers.map(r => r.y));
+        const newPreset = {
+            id: Date.now().toString(),
+            name: `Custom ${customPresets.length + 1}`,
+            routers: routers.map(r => ({ ...r, x: r.x - minX + 130, y: r.y - minY + 150 })),
+            links: links.map(l => ({ ...l }))
+        };
+        const updated = [...customPresets, newPreset];
+        setCustomPresets(updated);
+        localStorage.setItem('ripCustomPresets', JSON.stringify(updated));
+    };
+
+    const deleteCustomPreset = (id) => {
+        const updated = customPresets.filter(p => p.id !== id);
+        setCustomPresets(updated);
+        localStorage.setItem('ripCustomPresets', JSON.stringify(updated));
+    };
+
+    const loadCustomPreset = (preset) => {
+        resetSim();
+        setPackets([]);
+        setActivePath([]);
+        setPingResult(null);
+
+        const startIndex = nextId.current;
+        const rMap = {};
+        const offset = Math.floor(Math.random() * 30);
+        const mappedRouters = preset.routers.map((r, i) => {
+            const newId = `R${startIndex + i}`;
+            rMap[r.id] = newId;
+            return { ...r, id: newId, x: r.x + offset, y: r.y + offset, color: ROUTER_COLORS[(routers.length + i) % ROUTER_COLORS.length] };
+        });
+        const mappedLinks = preset.links.map(l => ({
+            ...l,
+            id: `${rMap[l.a]}-${rMap[l.b]}`,
+            a: rMap[l.a],
+            b: rMap[l.b]
+        }));
+        
+        setRouters(prev => [...prev, ...mappedRouters]);
+        setLinks(prev => [...prev, ...mappedLinks]);
+        nextId.current = startIndex + preset.routers.length;
+    };
 
     // Undo state
     const [history, setHistory] = useState([]);
@@ -152,46 +203,79 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
         }
     };
 
+    const generateTopology = (type, size, startIndex, offset, currentLength) => {
+        const newRouters = [];
+        const newLinks = [];
+        const rMap = {};
+
+        if (type === "linear") {
+            const startX = 130 + offset, y = 300 + offset;
+            for (let i = 0; i < size; i++) {
+                const id = `R${startIndex + i}`;
+                rMap[i] = id;
+                newRouters.push({ id, x: startX + i * 140, y, color: ROUTER_COLORS[(currentLength + i) % ROUTER_COLORS.length] });
+                if (i > 0) {
+                    newLinks.push({ id: `${rMap[i-1]}-${id}`, a: rMap[i-1], b: id, cost: Math.floor(Math.random() * 3) + 1, failed: false });
+                }
+            }
+        } else if (type === "ring") {
+            const cx = 440 + offset, cy = 310 + offset, r = 175;
+            for (let i = 0; i < size; i++) {
+                const a = (i / size) * 2 * Math.PI - Math.PI / 2;
+                const id = `R${startIndex + i}`;
+                rMap[i] = id;
+                newRouters.push({ id, x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), color: ROUTER_COLORS[(currentLength + i) % ROUTER_COLORS.length] });
+            }
+            for (let i = 0; i < size; i++) {
+                const aId = rMap[i], bId = rMap[(i + 1) % size];
+                newLinks.push({ id: `${aId}-${bId}`, a: aId, b: bId, cost: Math.floor(Math.random() * 3) + 1, failed: false });
+            }
+        } else if (type === "mesh") {
+            const cx = 440 + offset, cy = 310 + offset, r = 175;
+            for (let i = 0; i < size; i++) {
+                const a = (i / size) * 2 * Math.PI - Math.PI / 2;
+                const id = `R${startIndex + i}`;
+                rMap[i] = id;
+                newRouters.push({ id, x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), color: ROUTER_COLORS[(currentLength + i) % ROUTER_COLORS.length] });
+            }
+            for (let i = 0; i < size; i++) {
+                for (let j = i + 1; j < size; j++) {
+                    const aId = rMap[i], bId = rMap[j];
+                    newLinks.push({ id: `${aId}-${bId}`, a: aId, b: bId, cost: Math.floor(Math.random() * 3) + 1, failed: false });
+                }
+            }
+        }
+        return { newRouters, newLinks };
+    };
+
+    const spawnPreset = (type, size = 5) => {
+        if (size < 1) size = 1;
+        resetSim();
+        setPackets([]);
+        setActivePath([]);
+        setPingResult(null);
+
+        const startIndex = nextId.current;
+        const offset = Math.floor(Math.random() * 40);
+        
+        const { newRouters, newLinks } = generateTopology(type, size, startIndex, offset, routers.length);
+
+        setRouters(prev => [...prev, ...newRouters]);
+        setLinks(prev => [...prev, ...newLinks]);
+        nextId.current = startIndex + size;
+    };
+
     const loadPreset = (type) => {
         pushHistory();
         setRouters([]); setLinks([]); setPackets([]); setActivePath([]);
         resetSim();
         setPan({ x: 0, y: 0 });
-        nextId.current = 1; setPingResult(null);
-        if (type === "linear") {
-            setRouters([
-                { id: "R1", x: 130, y: 300, color: ROUTER_COLORS[0] }, { id: "R2", x: 320, y: 300, color: ROUTER_COLORS[1] },
-                { id: "R3", x: 510, y: 300, color: ROUTER_COLORS[2] }, { id: "R4", x: 700, y: 300, color: ROUTER_COLORS[3] },
-            ]);
-            setLinks([
-                { id: "R1-R2", a: "R1", b: "R2", cost: 1, failed: false },
-                { id: "R2-R3", a: "R2", b: "R3", cost: 2, failed: false },
-                { id: "R3-R4", a: "R3", b: "R4", cost: 1, failed: false },
-            ]);
-            nextId.current = 5;
-        } else if (type === "ring") {
-            const cx = 440, cy = 310, r = 175;
-            const rs = Array.from({ length: 5 }, (_, i) => {
-                const a = (i / 5) * 2 * Math.PI - Math.PI / 2;
-                return { id: `R${i + 1}`, x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), color: ROUTER_COLORS[i] };
-            });
-            setRouters(rs);
-            setLinks(rs.map((r, i) => ({ id: `${r.id}-${rs[(i + 1) % 5].id}`, a: r.id, b: rs[(i + 1) % 5].id, cost: Math.floor(Math.random() * 3) + 1, failed: false })));
-            nextId.current = 6;
-        } else if (type === "mesh") {
-            setRouters([
-                { id: "R1", x: 220, y: 180, color: ROUTER_COLORS[0] }, { id: "R2", x: 470, y: 160, color: ROUTER_COLORS[1] },
-                { id: "R3", x: 660, y: 290, color: ROUTER_COLORS[2] }, { id: "R4", x: 510, y: 450, color: ROUTER_COLORS[3] },
-                { id: "R5", x: 260, y: 450, color: ROUTER_COLORS[4] }, { id: "R6", x: 120, y: 330, color: ROUTER_COLORS[5] },
-            ]);
-            setLinks([
-                { id: "R1-R2", a: "R1", b: "R2", cost: 1, failed: false }, { id: "R2-R3", a: "R2", b: "R3", cost: 2, failed: false },
-                { id: "R3-R4", a: "R3", b: "R4", cost: 1, failed: false }, { id: "R4-R5", a: "R4", b: "R5", cost: 3, failed: false },
-                { id: "R5-R6", a: "R5", b: "R6", cost: 1, failed: false }, { id: "R6-R1", a: "R6", b: "R1", cost: 2, failed: false },
-                { id: "R1-R4", a: "R1", b: "R4", cost: 4, failed: false }, { id: "R2-R5", a: "R2", b: "R5", cost: 3, failed: false },
-            ]);
-            nextId.current = 7;
-        }
+        nextId.current = 1; setPingResult(null); setSelectedRouter(null); setConnectFrom(null);
+
+        const { newRouters, newLinks } = generateTopology(type, 5, 1, 0, 0);
+        setRouters(newRouters);
+        setLinks(newLinks);
+        nextId.current = 6;
     };
 
     const clearAll = () => {
@@ -209,7 +293,7 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
         selectedRouter, setSelectedRouter,
         handleCanvasClick, handleRouterClick, handleLinkClick,
         handleCanvasMouseDown, handleRouterMouseDown, handleMouseMove, handleMouseUp,
-        loadPreset, clearAll,
+        loadPreset, spawnPreset, clearAll,
         dragging, pan, isPanning,
         editingLink, setEditingLink, updateLinkCost,
         undo, canUndo: history.length > 0
