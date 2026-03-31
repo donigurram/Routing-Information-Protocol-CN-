@@ -1,0 +1,338 @@
+commit ef0c2d74a2db7ef8ba13704673f13f3e5adaf9f6
+Merge: c9eba21 f192a3b
+Author: Pendem Yashwanth Kumar <yashwanthpendem05@gmail.com>
+Date:   Thu Mar 26 20:10:04 2026 +0530
+
+    Merge pull request #7 from donigurram/yash
+    
+    Added undo feature and made canvas pannable
+
+commit f192a3b01f37bd26ee478c320e4c91cf0dad6952
+Author: Yashwanth Pendem <yashwanthpendem05@gmail.com>
+Date:   Thu Mar 26 20:08:52 2026 +0530
+
+    Added undo feature and made canvas pannable
+
+diff --git a/frontend/src/hooks/useTopology.js b/frontend/src/hooks/useTopology.js
+index cd7ff89..fcb8eb8 100644
+--- a/frontend/src/hooks/useTopology.js
++++ b/frontend/src/hooks/useTopology.js
+@@ -10,28 +10,80 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
+     const [pendingCost, setPendingCost] = useState(1);
+     const [selectedRouter, setSelectedRouter] = useState(null);
+ 
++    // Undo state
++    const [history, setHistory] = useState([]);
++
++    const pushHistory = (rs = routers, ls = links) => {
++        setHistory(prev => {
++            const newHist = [...prev, { routers: [...rs], links: [...ls] }];
++            if (newHist.length > 50) newHist.shift();
++            return newHist;
++        });
++    };
++
++    const undo = () => {
++        if (history.length === 0) return;
++        const last = history[history.length - 1];
++        setHistory(prev => prev.slice(0, -1));
++        setRouters(last.routers);
++        setLinks(last.links);
++        setPackets([]); setActivePath([]); setPingResult(null);
++        resetSim();
++        setMode("move");
++    };
++
++    // Pan state
++    const [pan, setPan] = useState({ x: 0, y: 0 });
++    const [isPanning, setIsPanning] = useState(false);
++    const [panStart, setPanStart] = useState({ x: 0, y: 0 });
++    const [hasDragged, setHasDragged] = useState(false);
++    const [editingLink, setEditingLink] = useState(null);
++
++    const updateLinkCost = (lid, newCost) => {
++        const cost = parseInt(newCost, 10);
++        if (!isNaN(cost) && cost > 0 && cost <= 16) {
++            pushHistory();
++            setLinks(prev => prev.map(l => l.id === lid ? { ...l, cost } : l));
++        }
++        setEditingLink(null);
++    };
++
++    const handleCanvasMouseDown = (e) => {
++        if (e.ctrlKey) {
++            setIsPanning(true);
++            setHasDragged(false);
++            setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
++        }
++    };
++
+     const handleCanvasClick = (e, svgRef) => {
++        setEditingLink(null);
++        if (e.ctrlKey || hasDragged || isPanning) return;
+         if (mode !== "add" || e.target.closest(".router-node")) return;
+         const r = svgRef.current.getBoundingClientRect();
+-        const x = e.clientX - r.left, y = e.clientY - r.top;
+-        if (y < 52) return;
++        if (e.clientY - r.top < 52) return;
++        const x = e.clientX - r.left - pan.x, y = e.clientY - r.top - pan.y;
+         const id = `R${nextId.current++}`;
+         const color = ROUTER_COLORS[(routers.length) % ROUTER_COLORS.length];
++        pushHistory();
+         setRouters(prev => [...prev, { id, x, y, color }]);
+     };
+ 
+     const handleRouterClick = (e, rid, setActiveTab) => {
++        if (e.ctrlKey || hasDragged || isPanning) return;
+         e.stopPropagation();
+         if (mode === "connect") {
+             if (!connectFrom) { setConnectFrom(rid); }
+             else if (connectFrom !== rid) {
+                 const exists = links.find(l => (l.a === connectFrom && l.b === rid) || (l.a === rid && l.b === connectFrom));
+                 if (!exists) {
++                    pushHistory();
+                     setLinks(prev => [...prev, { id: `${connectFrom}-${rid}`, a: connectFrom, b: rid, cost: pendingCost, failed: false }]);
+                 }
+                 setConnectFrom(null);
+             }
+         } else if (mode === "delete") {
++            pushHistory();
+             setRouters(prev => prev.filter(r => r.id !== rid));
+             setLinks(prev => prev.filter(l => l.a !== rid && l.b !== rid));
+         } else if (mode === "select") {
+@@ -41,38 +93,70 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
+     };
+ 
+     const handleLinkClick = (e, lid) => {
++        if (e.ctrlKey || hasDragged || isPanning) return;
+         e.stopPropagation();
+         if (mode === "delete") {
++            pushHistory();
+             setLinks(prev => prev.filter(l => l.id !== lid));
+         } else if (mode === "fail") {
++            pushHistory();
+             setLinks(prev => prev.map(l => l.id === lid ? { ...l, failed: !l.failed } : l));
++        } else {
++            setEditingLink(lid);
+         }
+     };
+ 
++    const [dragStartRouters, setDragStartRouters] = useState(null);
++
+     const handleRouterMouseDown = (e, rid, svgRef) => {
++        if (e.ctrlKey) return; // let canvas pan handle this
+         if (mode !== "move") return;
+         e.stopPropagation();
+         const rect = svgRef.current.getBoundingClientRect();
+-        const px = e.clientX - rect.left, py = e.clientY - rect.top;
++        const px = e.clientX - rect.left - pan.x, py = e.clientY - rect.top - pan.y;
+         const r = routers.find(r => r.id === rid);
+         if (r) {
++            setDragStartRouters([...routers]);
+             setDragging(rid); 
+             setDragOff({ x: px - r.x, y: py - r.y });
+         }
+     };
+ 
+     const handleMouseMove = (e, svgRef) => {
++        if (isPanning) {
++            const newPan = { x: e.clientX - panStart.x, y: e.clientY - panStart.y };
++            if (Math.abs(newPan.x - pan.x) > 2 || Math.abs(newPan.y - pan.y) > 2) {
++                setHasDragged(true);
++            }
++            setPan(newPan);
++            return;
++        }
++
+         if (!dragging) return;
+         const rect = svgRef.current.getBoundingClientRect();
+-        const px = e.clientX - rect.left, py = e.clientY - rect.top;
++        const px = e.clientX - rect.left - pan.x, py = e.clientY - rect.top - pan.y;
+         setRouters(prev => prev.map(r => r.id === dragging ? { ...r, x: px - dragOff.x, y: py - dragOff.y } : r));
+     };
+ 
+-    const handleMouseUp = () => setDragging(null);
++    const handleMouseUp = () => {
++        if (dragging && dragStartRouters) {
++            if (JSON.stringify(dragStartRouters) !== JSON.stringify(routers)) {
++                pushHistory(dragStartRouters, links);
++            }
++        }
++        setDragging(null);
++        setDragStartRouters(null);
++        if (isPanning) {
++            setIsPanning(false);
++            setTimeout(() => setHasDragged(false), 50);
++        }
++    };
+ 
+     const loadPreset = (type) => {
++        pushHistory();
+         setRouters([]); setLinks([]); setPackets([]); setActivePath([]);
+         resetSim();
++        setPan({ x: 0, y: 0 });
+         nextId.current = 1; setPingResult(null);
+         if (type === "linear") {
+             setRouters([
+@@ -111,8 +195,10 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
+     };
+ 
+     const clearAll = () => {
++        pushHistory();
+         setRouters([]); setLinks([]); setPackets([]); setActivePath([]);
+         resetSim();
++        setPan({ x: 0, y: 0 });
+         nextId.current = 1; setPingResult(null); setSelectedRouter(null);
+     };
+ 
+@@ -122,8 +208,10 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
+         pendingCost, setPendingCost,
+         selectedRouter, setSelectedRouter,
+         handleCanvasClick, handleRouterClick, handleLinkClick,
+-        handleRouterMouseDown, handleMouseMove, handleMouseUp,
++        handleCanvasMouseDown, handleRouterMouseDown, handleMouseMove, handleMouseUp,
+         loadPreset, clearAll,
+-        dragging
++        dragging, pan, isPanning,
++        editingLink, setEditingLink, updateLinkCost,
++        undo, canUndo: history.length > 0
+     };
+ }
+diff --git a/frontend/src/views/MainView.jsx b/frontend/src/views/MainView.jsx
+index 0c37e83..18c357c 100644
+--- a/frontend/src/views/MainView.jsx
++++ b/frontend/src/views/MainView.jsx
+@@ -1,4 +1,4 @@
+-import React, { useState, useRef } from "react";
++import React, { useState, useRef, useEffect } from "react";
+ import { useTheme } from "../hooks/useTheme";
+ import { useSimulation } from "../hooks/useSimulation";
+ import { useRouting } from "../hooks/useRouting";
+@@ -54,10 +54,23 @@ export default function MainView() {
+         mode, setMode, connectFrom, pendingCost, setPendingCost, 
+         selectedRouter, setSelectedRouter,
+         handleCanvasClick, handleRouterClick, handleLinkClick,
+-        handleRouterMouseDown, handleMouseMove, handleMouseUp,
+-        loadPreset, clearAll
++        handleCanvasMouseDown, handleRouterMouseDown, handleMouseMove, handleMouseUp,
++        loadPreset, clearAll, pan, isPanning,
++        editingLink, setEditingLink, updateLinkCost,
++        undo, canUndo
+     } = useTopology(routers, setRouters, links, setLinks, setPackets, setActivePath, setPingResult, resetSim);
+ 
++    useEffect(() => {
++        const handleKeyDown = (e) => {
++            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
++                e.preventDefault();
++                if (canUndo) undo();
++            }
++        };
++        window.addEventListener("keydown", handleKeyDown);
++        return () => window.removeEventListener("keydown", handleKeyDown);
++    }, [canUndo, undo]);
++
+     const isPathLink = (la, lb) => {
+         for (let i = 0; i < activePath.length - 1; i++)
+             if ((activePath[i] === la && activePath[i + 1] === lb) || (activePath[i] === lb && activePath[i + 1] === la)) return true;
+@@ -107,6 +120,20 @@ export default function MainView() {
+                     <div style={{ marginLeft: "auto", padding: "3px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, background: mc + "20", color: mc, border: `1px solid ${mc}44` }}>
+                         {modeLabels[mode] || "UNKNOWN"}
+                     </div>
++                    <button 
++                        onClick={undo}
++                        disabled={!canUndo}
++                        title="Undo (Ctrl+Z)"
++                        style={{
++                            padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: canUndo ? "pointer" : "not-allowed",
++                            background: canUndo ? T.surfaceAlt : "transparent",
++                            color: canUndo ? T.text : T.textFaint,
++                            border: `1.5px solid ${canUndo ? T.border : "transparent"}`,
++                            transition: "all .2s", display: "flex", alignItems: "center", gap: 5
++                        }}
++                    >
++                        ↶ UNDO
++                    </button>
+                     <ThemeToggle dark={dark} onToggle={() => setDark(d => !d)} T={T} />
+                 </div>
+ 
+@@ -122,18 +149,22 @@ export default function MainView() {
+                 <svg
+                     ref={svgRef}
+                     width="100%" height="100%"
+-                    style={{ display: "block", cursor: mode === "add" ? "crosshair" : mode === "move" ? "grab" : "pointer" }}
++                    style={{ display: "block", cursor: isPanning ? "grabbing" : mode === "add" ? "crosshair" : mode === "move" ? "grab" : "pointer" }}
+                     onClick={e => handleCanvasClick(e, svgRef)}
++                    onMouseDown={handleCanvasMouseDown}
+                     onMouseMove={e => handleMouseMove(e, svgRef)}
+                     onMouseUp={handleMouseUp}
++                    onMouseLeave={handleMouseUp}
+                 >
+                     <defs>
+-                        <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
++                        <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse" patternTransform={`translate(${pan.x}, ${pan.y})`}>
+                             <path d="M30 0L0 0 0 30" fill="none" stroke={T.gridLine} strokeWidth="0.8" />
+                         </pattern>
+                     </defs>
+                     <rect width="100%" height="100%" fill="url(#grid)" />
+ 
++                    <g transform={`translate(${pan.x}, ${pan.y})`}>
++
+                     {/* Links */}
+                     {links.map(l => {
+                         const ra = routers.find(r => r.id === l.a), rb = routers.find(r => r.id === l.b);
+@@ -149,10 +180,34 @@ export default function MainView() {
+                                 <rect x={mx - 12} y={my - 9} width={24} height={16} rx={4}
+                                     fill={l.failed ? T.dangerBg : isPath ? "#FEF3C7" : T.surface}
+                                     stroke={l.failed ? T.danger + "66" : isPath ? "#F59E0B" : T.border} strokeWidth={1} />
+-                                <text x={mx} y={my + 4} textAnchor="middle" fontSize={9} fontWeight={700}
+-                                    fill={l.failed ? T.danger : isPath ? "#D97706" : T.textMuted} fontFamily="monospace">
+-                                    {l.failed ? "✕" : l.cost}
+-                                </text>
++                                {editingLink === l.id && !l.failed ? (
++                                    <foreignObject x={mx - 12} y={my - 9} width={24} height={16}>
++                                        <input
++                                            autoFocus
++                                            defaultValue={l.cost}
++                                            onFocus={e => e.target.select()}
++                                            onMouseDown={e => e.stopPropagation()}
++                                            onClick={e => e.stopPropagation()}
++                                            onKeyDown={e => {
++                                                if (e.key === 'Enter') updateLinkCost(l.id, e.target.value);
++                                                if (e.key === 'Escape') setEditingLink(null);
++                                            }}
++                                            onBlur={e => updateLinkCost(l.id, e.target.value)}
++                                            style={{
++                                                width: '100%', height: '100%', border: 'none', background: 'transparent',
++                                                color: isPath ? "#D97706" : T.textMuted,
++                                                textAlign: 'center', fontSize: 9, fontWeight: 700,
++                                                fontFamily: 'monospace', outline: 'none', padding: 0, margin: 0
++                                            }}
++                                            min={1} max={15} type="number"
++                                        />
++                                    </foreignObject>
++                                ) : (
++                                    <text x={mx} y={my + 4} textAnchor="middle" fontSize={9} fontWeight={700}
++                                        fill={l.failed ? T.danger : isPath ? "#D97706" : T.textMuted} fontFamily="monospace">
++                                        {l.failed ? "✕" : l.cost}
++                                    </text>
++                                )}
+                             </g>
+                         );
+                     })}
+@@ -201,6 +256,7 @@ export default function MainView() {
+                             Click canvas to add routers → Connect → Simulate
+                         </text>
+                     )}
++                    </g>
+                 </svg>
+             </div>
+ 
+
+commit c9eba219b6273da4d6729788b81750d9e687f461
+Merge: 9d6ab6a cf47382
+Author: donigurram <gdoni161@gmail.com>
+Date:   Thu Mar 26 19:50:33 2026 +0530
+
+    Merge pull request #6 from donigurram/doni
+    
+    added simmulator to ping tool bar
