@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { Html, Line, Sphere, OrbitControls, Grid, TransformControls } from '@react-three/drei';
+import { Html, Line, Sphere, OrbitControls, Grid, TransformControls, Stars } from '@react-three/drei';
 import { useTheme } from "../hooks/useTheme";
 import { useSimulation } from "../hooks/useSimulation";
 import { useRouting } from "../hooks/useRouting";
@@ -37,20 +37,35 @@ function AnimatedRouter({ r, isPath, isConn, isSel, cnt, T, handleRouterClick, s
                 onClick={e => { e.stopPropagation(); handleRouterClick(e.nativeEvent || e, r.id, setActiveTab); }}
             >
                 {/* Glowing Sphere */}
-            <mesh>
-                <sphereGeometry args={[16, 32, 32]} />
-                <meshPhongMaterial color={color} emissive={color} emissiveIntensity={0.4} shininess={90} />
-            </mesh>
+            <group position={[0, 0, 0]}>
+                <mesh>
+                    <sphereGeometry args={[16, 32, 32]} />
+                    <meshStandardMaterial 
+                        color="#0f172a" 
+                        emissive={isSel ? "#10b981" : color} 
+                        emissiveIntensity={isSel ? 0.8 : 0.5} 
+                        roughness={0.1} 
+                        metalness={0.6} 
+                    />
+                </mesh>
+                {/* Subtle Outer Glow Halo to blend strongly with links/background */}
+                <mesh position={[0, 0, -1]}>
+                    <circleGeometry args={[22, 32]} />
+                    <meshBasicMaterial color={isSel ? "#10b981" : color} transparent opacity={0.15} />
+                </mesh>
+            </group>
 
-            <Html center zIndexRange={[100, 50]} style={{ pointerEvents: 'none' }}>
-                <div style={{ textAlign: "center", pointerEvents: 'none' }}>
-                    <div style={{ fontSize: 13, fontWeight: "bold", color: "#F1F5F9", fontFamily: "sans-serif", textShadow: "0 2px 4px rgba(0,0,0,0.8)" }}>
-                        {r.id}
-                    </div>
-                    <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 2, textShadow: "0 1px 2px rgba(0,0,0,1)" }}>
-                        {cnt} routes
+            <Html center zIndexRange={[100, 50]} position={[0, 0, 16]} style={{ pointerEvents: 'none' }}>
+                <div style={{ textAlign: "center", textShadow: "0 1px 4px rgba(0,0,0,1)" }}>
+                    <div style={{ color: "#f8fafc", fontSize: 14, fontFamily: "monospace", fontWeight: "bold" }}>
+                        {r.id.toUpperCase()}
                     </div>
                 </div>
+                {cnt > 0 && (
+                    <div style={{ position: "absolute", top: "18px", left: "50%", transform: "translateX(-50%)", fontSize: 10, color: "#94a3b8", whiteSpace: "nowrap" }}>
+                        {cnt} routes
+                    </div>
+                )}
             </Html>
             </group>
         </>
@@ -58,22 +73,29 @@ function AnimatedRouter({ r, isPath, isConn, isSel, cnt, T, handleRouterClick, s
 }
 
 function NetworkScene({ 
-    pan, routers, links, packets, mode, T, ripTables, activePath, connectFrom, selectedRouter,
+    is3D, pan, routers, links, packets, mode, T, ripTables, activePath, connectFrom, selectedRouter,
     handleRouterClick, handleRouterMouseDown, svgRef, setActiveTab,
     isPathLink, getPacketPos, handleLinkClick, editingLink, setEditingLink, updateLinkCost,
     dragging, handleCanvasClick, handleMouseMove, handleMouseUp, updateRouter3DPos, addRouter3D
 }) {
-    // Determine bounds for grid and camera target roughly around the center of nodes
-    const minX = Math.min(...routers.map(r => r.x), 0);
-    const maxX = Math.max(...routers.map(r => r.x), 800);
-    const minY = Math.min(...routers.map(r => r.y), 0);
-    const maxY = Math.max(...routers.map(r => r.y), 600);
-    const targetX = (minX + maxX) / 2;
-    const targetY = (minY + maxY) / 2;
+    const { camera } = useThree();
+    const controlsRef = useRef();
+
+    useEffect(() => {
+        if (controlsRef.current) {
+            if (!is3D) {
+                camera.position.set(400, 300, 550);
+            } else {
+                camera.position.set(400, -50, 500);
+            }
+            controlsRef.current.target.set(400, 300, 0);
+            controlsRef.current.update();
+        }
+    }, [is3D, camera]);
 
     return (
         <group>
-            <OrbitControls makeDefault enableDamping dampingFactor={0.05} enabled={!dragging} target={[400, 300, 0]} />
+            <OrbitControls ref={controlsRef} makeDefault enableDamping dampingFactor={0.05} enabled={!dragging} enableRotate={is3D} target={[400, 300, 0]} />
 
             {/* Background Invisible Raycast World Plane Z=0 */}
             <mesh 
@@ -124,19 +146,36 @@ function NetworkScene({
                         onClick={e => { e.stopPropagation(); handleLinkClick(e.nativeEvent || e, l.id); }} 
                         onPointerDown={e => e.stopPropagation()}
                     >
-                        <Line
-                            points={[[ra.x, ra.y, ra.z || 0], [rb.x, rb.y, rb.z || 0]]}
-                            color={l.failed ? stroke : isPath ? "#F59E0B" : "#3060FF"}
-                            lineWidth={isPath ? 3.5 : 2}
-                            dashed={l.failed}
-                            dashSize={6} gapSize={4}
-                            transparent opacity={l.failed ? 0.6 : 0.8}
-                        />
+                        <>
+                            <Line
+                                points={[[ra.x, ra.y, (ra.z || 0) - 1], [rb.x, rb.y, (rb.z || 0) - 1]]}
+                                color={l.failed ? stroke : isPath ? "#F59E0B" : "#3b82f6"}
+                                lineWidth={isPath ? 14 : 10}
+                                transparent opacity={0.15}
+                            />
+                            <Line
+                                points={[[ra.x, ra.y, (ra.z || 0) - 0.5], [rb.x, rb.y, (rb.z || 0) - 0.5]]}
+                                color={l.failed ? stroke : isPath ? "#FBBF24" : "#60a5fa"}
+                                lineWidth={isPath ? 3.5 : 1.5}
+                                dashed={l.failed}
+                                dashSize={8} gapSize={5}
+                                transparent opacity={l.failed ? 0.6 : 0.8}
+                            />
+                        </>
                         <Html position={[mx, my, ((ra.z||0)+(rb.z||0))/2]} center zIndexRange={[10, 0]}>
                             <div style={{
-                                cursor: 'pointer', pointerEvents: 'auto',
-                                fontSize: 10, fontWeight: 600, color: l.failed ? T.danger : isPath ? "#F59E0B" : "rgba(148, 163, 184, 0.7)",
-                                fontFamily: "'Inter', monospace", textShadow: "0 1px 2px rgba(0,0,0,0.8)"
+                                background: l.failed ? "rgba(239, 68, 68, 0.9)" : isPath ? "rgba(245, 158, 11, 0.9)" : "rgba(234, 179, 8, 0.9)",
+                                color: l.failed ? "#fff" : "#000",
+                                borderRadius: "4px",
+                                fontSize: "12px",
+                                padding: "2px 8px",
+                                fontWeight: "bold",
+                                cursor: "pointer",
+                                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                                backdropFilter: "blur(4px)",
+                                userSelect: "none",
+                                pointerEvents: "auto",
+                                border: l.failed ? "1px solid #ef4444" : "1px solid #eab308"
                             }}
                             onMouseDown={e => e.stopPropagation()}
                             onClick={e => { e.stopPropagation(); handleLinkClick(e, l.id); }}
@@ -153,14 +192,14 @@ function NetworkScene({
                                         onBlur={e => updateLinkCost(l.id, e.target.value)}
                                         style={{
                                             width: 30, height: 20, border: 'none', background: 'transparent',
-                                            color: isPath ? "#FBBF24" : "#94A3B8",
-                                            textAlign: 'center', fontSize: 11, fontWeight: 600,
+                                            color: "#000",
+                                            textAlign: 'center', fontSize: 12, fontWeight: "bold",
                                             fontFamily: 'monospace', outline: 'none', padding: 0, margin: 0
                                         }}
                                         min={1} max={15} type="number"
                                     />
                                 ) : (
-                                    l.failed ? "✕" : l.cost
+                                    l.failed ? "✕" : `🐾 ${l.cost}`
                                 )}
                             </div>
                         </Html>
@@ -188,16 +227,20 @@ function NetworkScene({
 
                 return (
                     <group key={pkt.id}>
-                        <mesh position={[pos.x, pos.y, pos.z || 0]}>
-                            <sphereGeometry args={[isPing ? 9 : 6, 16, 16]} />
-                            <meshPhongMaterial color={pColor} emissive={pColor} emissiveIntensity={0.6} />
+                        <mesh position={[pos.x, pos.y, (pos.z || 0) + 2]}>
+                            <sphereGeometry args={[isPing ? 8 : 4.5, 32, 32]} />
+                            <meshBasicMaterial color={pColor} />
                         </mesh>
                         {ghosts.map((g, i) => (
-                            <mesh key={i} position={g.p}>
-                                <sphereGeometry args={[isPing ? 8 : 5, 16, 16]} />
-                                <meshBasicMaterial color={pColor} transparent opacity={g.opacity * 0.4} blending={2} depthWrite={false} />
+                            <mesh key={i} position={[g.p[0], g.p[1], (g.p[2]||0) + 2]}>
+                                <sphereGeometry args={[isPing ? 7 : 4, 16, 16]} />
+                                <meshBasicMaterial color={pColor} transparent opacity={g.opacity * 0.5} blending={2} depthWrite={false} />
                             </mesh>
                         ))}
+                        <mesh position={[pos.x, pos.y, (pos.z || 0) + 1]}>
+                            <sphereGeometry args={[isPing ? 14 : 9, 16, 16]} />
+                            <meshBasicMaterial color={pColor} transparent opacity={0.2} blending={2} depthWrite={false} />
+                        </mesh>
                     </group>
                 );
             })}
@@ -231,6 +274,7 @@ export default function MainView() {
     const [packets, setPackets] = useState([]);
     const [activePath, setActivePath] = useState([]);
     const [activeTab, setActiveTab] = useState("ping");
+    const [is3D, setIs3D] = useState(false);
 
     const { ripTables, nextHopMap } = useRouting(routers, links);
 
@@ -328,6 +372,19 @@ export default function MainView() {
                     >
                         ↶ UNDO
                     </button>
+                    <button
+                        onClick={() => setIs3D(!is3D)}
+                        style={{
+                            padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                            background: is3D ? T.accent + "20" : T.surfaceAlt,
+                            color: is3D ? T.accent : T.text,
+                            border: `1.5px solid ${is3D ? T.accent : T.border}`,
+                            transition: "all .2s", display: "flex", alignItems: "center", gap: 5,
+                            marginLeft: 10, marginRight: 10
+                        }}
+                    >
+                        {is3D ? "3D" : "2D"}
+                    </button>
                     <ThemeToggle dark={dark} onToggle={() => setDark(d => !d)} T={T} />
                 </div>
 
@@ -346,11 +403,13 @@ export default function MainView() {
                 >
                     {/* 3D Scene */}
                     <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 1 }}>
-                        <Canvas camera={{ position: [400, 300, 800], fov: 60 }}>
-                            <ambientLight intensity={0.5} />
-                            <directionalLight position={[10, 50, 100]} intensity={1} />
+                        <Canvas camera={{ position: [400, 300, 550], fov: 60 }}>
+                            <color attach="background" args={["#060812"]} />
+                            <ambientLight intensity={0.6} />
+                            <directionalLight position={[100, 100, 300]} intensity={1.2} />
+                            <Stars radius={1500} depth={50} count={3000} factor={5} saturation={0.5} fade speed={0.5} />
                             <NetworkScene 
-                                pan={pan} routers={routers} links={links} packets={packets} mode={mode} T={T} 
+                                is3D={is3D} pan={pan} routers={routers} links={links} packets={packets} mode={mode} T={T} 
                                 ripTables={ripTables} activePath={activePath} connectFrom={connectFrom} selectedRouter={selectedRouter}
                                 handleRouterClick={handleRouterClick} handleRouterMouseDown={handleRouterMouseDown} svgRef={svgRef} setActiveTab={setActiveTab}
                                 isPathLink={isPathLink} getPacketPos={getPacketPos} handleLinkClick={handleLinkClick} 
