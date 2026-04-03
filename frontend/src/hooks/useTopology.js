@@ -96,6 +96,10 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
     const [hasDragged, setHasDragged] = useState(false);
     const [editingLink, setEditingLink] = useState(null);
 
+    const updateRouter3DPos = (id, x, y, z) => {
+        setRouters(prev => prev.map(r => r.id === id ? { ...r, x, y, z } : r));
+    };
+
     const updateLinkCost = (lid, newCost) => {
         const cost = parseInt(newCost, 10);
         if (!isNaN(cost) && cost > 0 && cost <= 16) {
@@ -138,8 +142,17 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
         const x = e.clientX - r.left - pan.x, y = e.clientY - r.top - pan.y;
         const id = `R${nextId.current++}`;
         const color = ROUTER_COLORS[(routers.length) % ROUTER_COLORS.length];
+        const z = Math.floor(Math.random() * 400) - 200;
         pushHistory();
-        setRouters(prev => [...prev, { id, x, y, color }]);
+        setRouters(prev => [...prev, { id, x, y, z, color }]);
+    };
+
+    const addRouter3D = (x, y, z) => {
+        if (mode !== "add") return;
+        const id = `R${nextId.current++}`;
+        const color = ROUTER_COLORS[(routers.length) % ROUTER_COLORS.length];
+        pushHistory();
+        setRouters(prev => [...prev, { id, x, y, z, color }]);
     };
 
     const handleRouterClick = (e, rid, setActiveTab) => {
@@ -152,7 +165,11 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
                 const exists = links.find(l => (l.a === connectFrom && l.b === rid) || (l.a === rid && l.b === connectFrom));
                 if (!exists) {
                     pushHistory();
-                    setLinks(prev => [...prev, { id: `${connectFrom}-${rid}`, a: connectFrom, b: rid, cost: pendingCost, failed: false }]);
+                    const ra = routers.find(r => r.id === connectFrom);
+                    const rb = routers.find(r => r.id === rid);
+                    const dist = Math.hypot(ra.x - rb.x, ra.y - rb.y, (ra.z || 0) - (rb.z || 0));
+                    const autoCost = Math.max(1, Math.min(15, Math.ceil(dist / 60)));
+                    setLinks(prev => [...prev, { id: `${connectFrom}-${rid}`, a: connectFrom, b: rid, cost: autoCost, failed: false }]);
                 }
                 setConnectFrom(null);
             }
@@ -166,9 +183,9 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
                 setRouters(prev => prev.filter(r => r.id !== rid));
                 setLinks(prev => prev.filter(l => l.a !== rid && l.b !== rid));
             }
-        } else if (mode === "select") {
+        } else if (mode === "select" || mode === "move") {
             setSelectedRouter(rid); 
-            if (setActiveTab) setActiveTab("table");
+            if (mode === "select" && setActiveTab) setActiveTab("table");
         }
     };
 
@@ -236,16 +253,15 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
         if (!dragging) return;
         const rect = svgRef.current.getBoundingClientRect();
         const px = e.clientX - rect.left - pan.x, py = e.clientY - rect.top - pan.y;
-        
         if (dragging === "MULTI") {
             setRouters(prev => prev.map(r => {
                 if (multiSelected.includes(r.id) && dragOffMap[r.id]) {
-                    return { ...r, x: px - dragOffMap[r.id].x, y: py - dragOffMap[r.id].y };
+                    return { ...r, x: px - dragOffMap[r.id].x, y: py - dragOffMap[r.id].y, z: r.z };
                 }
                 return r;
             }));
         } else {
-            setRouters(prev => prev.map(r => r.id === dragging ? { ...r, x: px - dragOff.x, y: py - dragOff.y } : r));
+            setRouters(prev => prev.map(r => r.id === dragging ? { ...r, x: px - dragOff.x, y: py - dragOff.y, z: r.z } : r));
         }
     };
 
@@ -295,7 +311,7 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
             for (let i = 0; i < size; i++) {
                 const id = `R${startIndex + i}`;
                 rMap[i] = id;
-                newRouters.push({ id, x: startX + i * 140, y, color: ROUTER_COLORS[(currentLength + i) % ROUTER_COLORS.length] });
+                newRouters.push({ id, x: startX + i * 140, y, z: 0, color: ROUTER_COLORS[(currentLength + i) % ROUTER_COLORS.length] });
                 if (i > 0) {
                     newLinks.push({ id: `${rMap[i-1]}-${id}`, a: rMap[i-1], b: id, cost: Math.floor(Math.random() * 3) + 1, failed: false });
                 }
@@ -318,7 +334,8 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
                 const a = (i / size) * 2 * Math.PI - Math.PI / 2;
                 const id = `R${startIndex + i}`;
                 rMap[i] = id;
-                newRouters.push({ id, x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), color: ROUTER_COLORS[(currentLength + i) % ROUTER_COLORS.length] });
+                const z = 0; // Pure 2D layout initial state
+                newRouters.push({ id, x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), z, color: ROUTER_COLORS[(currentLength + i) % ROUTER_COLORS.length] });
             }
             for (let i = 0; i < size; i++) {
                 for (let j = i + 1; j < size; j++) {
@@ -391,6 +408,6 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
         loadPreset, spawnPreset, clearAll,
         dragging, pan, isPanning,
         editingLink, setEditingLink, updateLinkCost,
-        undo, canUndo: history.length > 0
+        undo, canUndo: history.length > 0, updateRouter3DPos, addRouter3D
     };
 }

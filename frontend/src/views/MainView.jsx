@@ -1,4 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
+import { Html, Line, Sphere, OrbitControls, Grid, TransformControls, Stars } from '@react-three/drei';
 import { useTheme } from "../hooks/useTheme";
 import { useSimulation } from "../hooks/useSimulation";
 import { useRouting } from "../hooks/useRouting";
@@ -9,6 +12,283 @@ import ThemeToggle from "../components/ui/ThemeToggle";
 import ControlPanel from "../components/panels/ControlPanel";
 import ToolsCard from "../components/panels/ToolsCard";
 
+function AnimatedRouter({ r, isPath, isConn, isSel, cnt, T, handleRouterClick, handleRouterMouseDown, svgRef, pan, setActiveTab, mode, updateRouter3DPos }) {
+    const palette = ["#4361EE", "#06D6A0", "#EF233C", "#F77F00", "#7B2FBE", "#0077B6"];
+    const cIdx = parseInt(r.id.replace('R','')) || 0;
+    const color = palette[cIdx % palette.length];
+    
+    const groupRef = useRef();
+
+    return (
+        <>
+            {mode === "move" && isSel && (
+                <TransformControls 
+                    object={groupRef} 
+                    mode="translate" 
+                    size={0.6}
+                    onObjectChange={() => {
+                        if (groupRef.current) {
+                            const p = groupRef.current.position;
+                            updateRouter3DPos(r.id, p.x, p.y, p.z);
+                        }
+                    }}
+                />
+            )}
+            <group ref={groupRef} position={[r.x, r.y, r.z || 0]} 
+                onClick={e => { e.stopPropagation(); handleRouterClick(e.nativeEvent || e, r.id, setActiveTab); }}
+                onPointerDown={e => { e.stopPropagation(); if(handleRouterMouseDown) handleRouterMouseDown({clientX: e.clientX, clientY: e.clientY, ctrlKey: e.ctrlKey}, r.id, svgRef); }}
+            >
+                {/* Glowing Sphere */}
+            <group position={[0, 0, 0]}>
+                <mesh>
+                    <sphereGeometry args={[16, 32, 32]} />
+                    <meshStandardMaterial 
+                        color="#0f172a" 
+                        emissive={isSel ? "#10b981" : color} 
+                        emissiveIntensity={isSel ? 0.8 : 0.5} 
+                        roughness={0.1} 
+                        metalness={0.6} 
+                    />
+                </mesh>
+                {/* Subtle Outer Glow Halo to blend strongly with links/background */}
+                <mesh position={[0, 0, -1]}>
+                    <circleGeometry args={[22, 32]} />
+                    <meshBasicMaterial color={isSel ? "#10b981" : color} transparent opacity={0.15} />
+                </mesh>
+            </group>
+
+            <Html center zIndexRange={[100, 50]} position={[0, 0, 16]} style={{ pointerEvents: 'none' }}>
+                <div style={{ textAlign: "center", textShadow: "0 1px 4px rgba(0,0,0,1)" }}>
+                    <div style={{ color: "#f8fafc", fontSize: 14, fontFamily: "monospace", fontWeight: "bold" }}>
+                        {r.id.toUpperCase()}
+                    </div>
+                </div>
+                {cnt > 0 && (
+                    <div style={{ position: "absolute", top: "18px", left: "50%", transform: "translateX(-50%)", fontSize: 10, color: "#94a3b8", whiteSpace: "nowrap" }}>
+                        {cnt} routes
+                    </div>
+                )}
+            </Html>
+            </group>
+        </>
+    );
+}
+
+function NetworkScene({ 
+    is3D, pan, routers, links, packets, mode, T, ripTables, activePath, connectFrom, selectedRouter,
+    multiSelected, isBoxSelectMode,
+    handleRouterClick, handleRouterMouseDown, svgRef, setActiveTab,
+    isPathLink, getPacketPos, handleLinkClick, editingLink, setEditingLink, updateLinkCost,
+    dragging, handleCanvasClick, handleMouseMove, handleMouseUp, updateRouter3DPos, addRouter3D
+}) {
+    const { camera } = useThree();
+    const controlsRef = useRef();
+
+    useEffect(() => {
+        if (controlsRef.current) {
+            if (!is3D) {
+                camera.position.set(400, 300, 550);
+            } else {
+                camera.position.set(400, -50, 500);
+            }
+            controlsRef.current.target.set(400, 300, 0);
+            controlsRef.current.update();
+        }
+    }, [is3D, camera]);
+
+    return (
+        <group>
+            <OrbitControls 
+                ref={controlsRef} 
+                makeDefault 
+                enableDamping 
+                dampingFactor={0.05} 
+                enabled={!dragging && !isBoxSelectMode} 
+                enableRotate={is3D} 
+                mouseButtons={{
+                    LEFT: is3D ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN,
+                    MIDDLE: THREE.MOUSE.DOLLY,
+                    RIGHT: THREE.MOUSE.PAN
+                }}
+                target={[400, 300, 0]} 
+            />
+
+            {/* Background Invisible Raycast World Plane Z=0 */}
+            <mesh 
+                position={[0,0,0]}
+                onPointerDown={e => {
+                    const evt = { clientX: e.clientX, clientY: e.clientY, target: svgRef.current, ctrlKey: e.ctrlKey, button: e.button };
+                    if (isBoxSelectMode) {
+                        e.stopPropagation();
+                        handleCanvasMouseDown(evt);
+                    }
+                }}
+                onClick={e => {
+                    if (isBoxSelectMode) return;
+                    e.stopPropagation();
+                    if (mode === "add" && !e.ctrlKey) {
+                        addRouter3D(e.point.x, e.point.y, 0);
+                    }
+                    if (mode !== "add") {
+                       handleCanvasClick({ clientX: e.clientX, clientY: e.clientY, ctrlKey: e.ctrlKey, target: svgRef.current }, svgRef);
+                    }
+                }}
+                onPointerMove={e => {
+                    if (isBoxSelectMode || dragging) {
+                        e.stopPropagation();
+                        // For smooth dragging, we use the intersection point on the horizontal plane
+                        handleMouseMove({
+                            clientX: e.clientX,
+                            clientY: e.clientY,
+                            ctrlKey: false
+                        }, svgRef);
+                    }
+                }}
+                onPointerUp={(e) => {
+                    e.stopPropagation();
+                    handleMouseUp();
+                }}
+                onPointerLeave={(e) => {
+                    if (dragging || isBoxSelectMode) handleMouseUp();
+                }}
+            >
+                <planeGeometry args={[100000, 100000]} />
+                <meshBasicMaterial transparent opacity={0} depthWrite={false} side={2} />
+            </mesh>
+
+            {/* 3D Floor Grid removed as per sleek flat aesthetic request */}
+            
+            {/* Links */}
+            {links.map(l => {
+                const ra = routers.find(r => r.id === l.a), rb = routers.find(r => r.id === l.b);
+                if (!ra || !rb) return null;
+                const mx = (ra.x + rb.x) / 2, my = (ra.y + rb.y) / 2;
+                const isPath = isPathLink(l.a, l.b);
+                const stroke = l.failed ? T.danger : isPath ? "#F59E0B" : "rgba(30, 58, 138, 0.9)";
+                return (
+                    <group key={l.id} 
+                        onClick={e => { e.stopPropagation(); handleLinkClick(e.nativeEvent || e, l.id); }} 
+                        onPointerDown={e => e.stopPropagation()}
+                    >
+                        <>
+                            <Line
+                                points={[[ra.x, ra.y, (ra.z || 0) - 1], [rb.x, rb.y, (rb.z || 0) - 1]]}
+                                color={l.failed ? stroke : isPath ? "#F59E0B" : "#3b82f6"}
+                                lineWidth={isPath ? 14 : 10}
+                                transparent opacity={0.15}
+                            />
+                            <Line
+                                points={[[ra.x, ra.y, (ra.z || 0) - 0.5], [rb.x, rb.y, (rb.z || 0) - 0.5]]}
+                                color={l.failed ? stroke : isPath ? "#FBBF24" : "#60a5fa"}
+                                lineWidth={isPath ? 3.5 : 1.5}
+                                dashed={l.failed}
+                                dashSize={8} gapSize={5}
+                                transparent opacity={l.failed ? 0.6 : 0.8}
+                            />
+                        </>
+                        <Html position={[mx, my, ((ra.z||0)+(rb.z||0))/2]} center zIndexRange={[10, 0]}>
+                            <div style={{
+                                background: l.failed ? "rgba(239, 68, 68, 0.9)" : isPath ? "rgba(245, 158, 11, 0.9)" : "rgba(234, 179, 8, 0.9)",
+                                color: l.failed ? "#fff" : "#000",
+                                borderRadius: "4px",
+                                fontSize: "12px",
+                                padding: "2px 8px",
+                                fontWeight: "bold",
+                                cursor: "pointer",
+                                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                                backdropFilter: "blur(4px)",
+                                userSelect: "none",
+                                pointerEvents: "auto",
+                                border: l.failed ? "1px solid #ef4444" : "1px solid #eab308"
+                            }}
+                            onMouseDown={e => e.stopPropagation()}
+                            onClick={e => { e.stopPropagation(); handleLinkClick(e, l.id); }}
+                            >
+                                {editingLink === l.id && !l.failed ? (
+                                    <input
+                                        autoFocus
+                                        defaultValue={l.cost}
+                                        onFocus={e => e.target.select()}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter') updateLinkCost(l.id, e.target.value);
+                                            if (e.key === 'Escape') setEditingLink(null);
+                                        }}
+                                        onBlur={e => updateLinkCost(l.id, e.target.value)}
+                                        style={{
+                                            width: 30, height: 20, border: 'none', background: 'transparent',
+                                            color: "#000",
+                                            textAlign: 'center', fontSize: 12, fontWeight: "bold",
+                                            fontFamily: 'monospace', outline: 'none', padding: 0, margin: 0
+                                        }}
+                                        min={1} max={15} type="number"
+                                    />
+                                ) : (
+                                    l.failed ? "✕" : `🐾 ${l.cost}`
+                                )}
+                            </div>
+                        </Html>
+                    </group>
+                );
+            })}
+
+            {/* Packets */}
+            {packets.map(pkt => {
+                if (pkt.t < 0) return null;
+                const pos = getPacketPos(pkt);
+                if (!pos) return null;
+                
+                const ghosts = [];
+                for(let i=1; i<=4; i++) {
+                    const ghostT = pkt.t - (i * 0.04);
+                    if (ghostT > 0) {
+                        const ghostPos = getPacketPos({...pkt, t: ghostT});
+                        if (ghostPos) ghosts.push({ p: [ghostPos.x, ghostPos.y, ghostPos.z || 0], opacity: 1 - (i * 0.22) });
+                    }
+                }
+
+                const isPing = pkt.type === "ping";
+                const pColor = isPing ? "#F59E0B" : "#4361EE";
+
+                return (
+                    <group key={pkt.id}>
+                        <mesh position={[pos.x, pos.y, (pos.z || 0) + 2]}>
+                            <sphereGeometry args={[isPing ? 8 : 4.5, 32, 32]} />
+                            <meshBasicMaterial color={pColor} />
+                        </mesh>
+                        {ghosts.map((g, i) => (
+                            <mesh key={i} position={[g.p[0], g.p[1], (g.p[2]||0) + 2]}>
+                                <sphereGeometry args={[isPing ? 7 : 4, 16, 16]} />
+                                <meshBasicMaterial color={pColor} transparent opacity={g.opacity * 0.5} blending={2} depthWrite={false} />
+                            </mesh>
+                        ))}
+                        <mesh position={[pos.x, pos.y, (pos.z || 0) + 1]}>
+                            <sphereGeometry args={[isPing ? 14 : 9, 16, 16]} />
+                            <meshBasicMaterial color={pColor} transparent opacity={0.2} blending={2} depthWrite={false} />
+                        </mesh>
+                    </group>
+                );
+            })}
+
+            {/* Routers */}
+            {routers.map(r => {
+                const isPath = activePath.includes(r.id);
+                const isConn = connectFrom === r.id;
+                const isSel = selectedRouter === r.id || multiSelected?.includes(r.id);
+                const cnt = ripTables[r.id] ? Object.values(ripTables[r.id]).filter(v => v < Infinity && v > 0).length : 0;
+                return <AnimatedRouter key={r.id} r={r} isPath={isPath} isConn={isConn} isSel={isSel} cnt={cnt} T={T} handleRouterClick={handleRouterClick} handleRouterMouseDown={handleRouterMouseDown} svgRef={svgRef} pan={pan} setActiveTab={setActiveTab} mode={mode} updateRouter3DPos={updateRouter3DPos} />;
+            })}
+            
+            {routers.length === 0 && (
+                <Html center position={[0,-10,0]} style={{ pointerEvents: 'none', width: 400, textAlign: 'center' }}>
+                    <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "monospace" }}>
+                        Click canvas to add routers → Connect → Simulate
+                    </div>
+                </Html>
+            )}
+        </group>
+    );
+}
+
 export default function MainView() {
     const svgRef = useRef(null);
     const { dark, setDark, T } = useTheme();
@@ -18,6 +298,7 @@ export default function MainView() {
     const [packets, setPackets] = useState([]);
     const [activePath, setActivePath] = useState([]);
     const [activeTab, setActiveTab] = useState("ping");
+    const [is3D, setIs3D] = useState(false);
 
     const [simRunning, setSimRunning] = useState(false);
 
@@ -41,9 +322,9 @@ export default function MainView() {
         selectionBox, deleteMultiSelected,
         handleCanvasClick, handleRouterClick, handleLinkClick,
         handleCanvasMouseDown, handleRouterMouseDown, handleMouseMove, handleMouseUp,
-        loadPreset, spawnPreset, clearAll, pan, isPanning,
+        loadPreset, spawnPreset, clearAll, pan, isPanning, dragging,
         editingLink, setEditingLink, updateLinkCost,
-        undo, canUndo
+        undo, canUndo, updateRouter3DPos, addRouter3D
     } = useTopology(routers, setRouters, links, setLinks, setPackets, setActivePath, setPingResult, resetSim);
 
     useEffect(() => {
@@ -85,13 +366,13 @@ export default function MainView() {
         <div style={{
             display: "flex", height: "100vh", width: "100%",
             fontFamily: "'JetBrains Mono', 'Fira Code', 'IBM Plex Mono', monospace",
-            background: T.bg, color: T.text, overflow: "hidden",
+            background: "#0A0D1A", color: T.text, overflow: "hidden",
             transition: "background .25s, color .25s",
         }}>
             <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet" />
 
             {/* ══ CANVAS ══════════════════════════════════════════ */}
-            <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+            <div style={{ flex: 1, position: "relative", overflow: "hidden", userSelect: "none", WebkitUserSelect: "none" }}>
                 {/* Top bar */}
                 <div style={{
                     position: "absolute", top: 0, left: 0, right: 0, zIndex: 20,
@@ -143,6 +424,19 @@ export default function MainView() {
                         }}
                     >
                         ↶ UNDO
+                    </button>
+                    <button
+                        onClick={() => setIs3D(!is3D)}
+                        style={{
+                            padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                            background: is3D ? T.accent + "20" : T.surfaceAlt,
+                            color: is3D ? T.accent : T.text,
+                            border: `1.5px solid ${is3D ? T.accent : T.border}`,
+                            transition: "all .2s", display: "flex", alignItems: "center", gap: 5,
+                            marginLeft: 10, marginRight: 10
+                        }}
+                    >
+                        {is3D ? "3D" : "2D"}
                     </button>
                     <ThemeToggle dark={dark} onToggle={() => setDark(d => !d)} T={T} />
                 </div>
@@ -201,138 +495,47 @@ export default function MainView() {
                     </div>
                 )}
 
-                {/* Canvas SVG */}
-                <svg
+                {/* Interactive Wrapper matching SVG bounds */}
+                <div 
                     ref={svgRef}
-                    width="100%" height="100%"
-                    style={{ display: "block", cursor: isPanning ? "grabbing" : mode === "add" ? "crosshair" : mode === "move" ? "grab" : "pointer" }}
-                    onClick={e => handleCanvasClick(e, svgRef)}
-                    onMouseDown={handleCanvasMouseDown}
-                    onMouseMove={e => handleMouseMove(e, svgRef)}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={handleMouseUp}
+                    style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 10 }}
                 >
-                    <defs>
-                        <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse" patternTransform={`translate(${pan.x}, ${pan.y})`}>
-                            <path d="M30 0L0 0 0 30" fill="none" stroke={T.gridLine} strokeWidth="0.8" />
-                        </pattern>
-                    </defs>
-                    <rect id="bg-canvas" width="100%" height="100%" fill="url(#grid)" />
+                    {selectionBox && (
+                        <div style={{
+                            position: "absolute",
+                            zIndex: 20,
+                            backgroundColor: "rgba(6, 182, 212, 0.15)",
+                            border: "1px dashed #06B6D4",
+                            pointerEvents: "none",
+                            left: Math.min(selectionBox.startX, selectionBox.endX) + pan.x,
+                            top: Math.min(selectionBox.startY, selectionBox.endY) + pan.y,
+                            width: Math.abs(selectionBox.endX - selectionBox.startX),
+                            height: Math.abs(selectionBox.endY - selectionBox.startY)
+                        }} />
+                    )}
 
-                    <g transform={`translate(${pan.x}, ${pan.y})`}>
-
-                        {/* Selection Box */}
-                        {selectionBox && (
-                            <rect 
-                                x={Math.min(selectionBox.startX, selectionBox.endX)}
-                                y={Math.min(selectionBox.startY, selectionBox.endY)}
-                                width={Math.abs(selectionBox.endX - selectionBox.startX)}
-                                height={Math.abs(selectionBox.endY - selectionBox.startY)}
-                                fill={T.accent + "22"}
-                                stroke={T.accent}
-                                strokeWidth={1.5}
-                                strokeDasharray="4 4"
-                                style={{ pointerEvents: "none" }}
+                    {/* 3D Scene */}
+                    <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 1 }}>
+                        <Canvas camera={{ position: [400, 300, 550], fov: 60 }}>
+                            <color attach="background" args={["#060812"]} />
+                            <ambientLight intensity={0.6} />
+                            <directionalLight position={[100, 100, 300]} intensity={1.2} />
+                            <group position={[400, 300, -400]}>
+                                <Stars radius={1000} depth={300} count={6000} factor={10} saturation={0.5} fade speed={1} />
+                            </group>
+                            <NetworkScene 
+                                is3D={is3D} pan={pan} routers={routers} links={links} packets={packets} mode={mode} T={T} 
+                                ripTables={ripTables} activePath={activePath} connectFrom={connectFrom} selectedRouter={selectedRouter}
+                                multiSelected={multiSelected} isBoxSelectMode={isBoxSelectMode}
+                                handleRouterClick={handleRouterClick} handleRouterMouseDown={handleRouterMouseDown} svgRef={svgRef} setActiveTab={setActiveTab}
+                                isPathLink={isPathLink} getPacketPos={getPacketPos} handleLinkClick={handleLinkClick} 
+                                editingLink={editingLink} setEditingLink={setEditingLink} updateLinkCost={updateLinkCost}
+                                dragging={dragging} handleCanvasClick={handleCanvasClick} handleMouseMove={handleMouseMove} handleMouseUp={handleMouseUp}
+                                updateRouter3DPos={updateRouter3DPos} addRouter3D={addRouter3D}
                             />
-                        )}
-
-                        {/* Links */}
-                        {links.map(l => {
-                            const ra = routers.find(r => r.id === l.a), rb = routers.find(r => r.id === l.b);
-                            if (!ra || !rb) return null;
-                            const mx = (ra.x + rb.x) / 2, my = (ra.y + rb.y) / 2;
-                            const isPath = isPathLink(l.a, l.b);
-                            const stroke = l.failed ? T.danger + "88" : isPath ? "#F59E0B" : T.accent + "66";
-                            return (
-                                <g key={l.id} onClick={e => handleLinkClick(e, l.id)} style={{ cursor: "pointer" }}>
-                                    <line x1={ra.x} y1={ra.y} x2={rb.x} y2={rb.y}
-                                        stroke={stroke} strokeWidth={isPath ? 3.5 : 2}
-                                        strokeDasharray={l.failed ? "6,4" : "none"} opacity={l.failed ? 0.6 : 1} />
-                                    <rect x={mx - 12} y={my - 9} width={24} height={16} rx={4}
-                                        fill={l.failed ? T.dangerBg : isPath ? "#FEF3C7" : T.surface}
-                                        stroke={l.failed ? T.danger + "66" : isPath ? "#F59E0B" : T.border} strokeWidth={1} />
-                                    {editingLink === l.id && !l.failed ? (
-                                        <foreignObject x={mx - 12} y={my - 9} width={24} height={16}>
-                                            <input
-                                                autoFocus
-                                                defaultValue={l.cost}
-                                                onFocus={e => e.target.select()}
-                                                onMouseDown={e => e.stopPropagation()}
-                                                onClick={e => e.stopPropagation()}
-                                                onKeyDown={e => {
-                                                    if (e.key === 'Enter') updateLinkCost(l.id, e.target.value);
-                                                    if (e.key === 'Escape') setEditingLink(null);
-                                                }}
-                                                onBlur={e => updateLinkCost(l.id, e.target.value)}
-                                                style={{
-                                                    width: '100%', height: '100%', border: 'none', background: 'transparent',
-                                                    color: isPath ? "#D97706" : T.textMuted,
-                                                    textAlign: 'center', fontSize: 9, fontWeight: 700,
-                                                    fontFamily: 'monospace', outline: 'none', padding: 0, margin: 0
-                                                }}
-                                                min={1} max={15} type="number"
-                                            />
-                                        </foreignObject>
-                                    ) : (
-                                        <text x={mx} y={my + 4} textAnchor="middle" fontSize={9} fontWeight={700}
-                                            fill={l.failed ? T.danger : isPath ? "#D97706" : T.textMuted} fontFamily="monospace">
-                                            {l.failed ? "✕" : l.cost}
-                                        </text>
-                                    )}
-                                </g>
-                            );
-                        })}
-
-                        {/* Packets */}
-                        {packets.map(pkt => {
-                            const pos = getPacketPos(pkt);
-                            if (!pos) return null;
-                            return (
-                                <g key={pkt.id}>
-                                    <circle cx={pos.x} cy={pos.y} r={pkt.type === "ping" ? 7 : 5} fill={pkt.color} opacity={0.9} />
-                                    {pkt.type === "update" && <circle cx={pos.x} cy={pos.y} r={9} fill="none" stroke={pkt.color} strokeWidth={1.5} opacity={0.4} />}
-                                </g>
-                            );
-                        })}
-
-                        {/* Routers */}
-                        {routers.map(r => {
-                            const isPath = activePath.includes(r.id);
-                            const isConn = connectFrom === r.id;
-                            const isSel = selectedRouter === r.id;
-                            const isMulti = multiSelected.includes(r.id);
-                            const isBroadcasting = activeBroadcaster === r.id;
-                            const cnt = ripTables[r.id] ? Object.values(ripTables[r.id]).filter(v => v < Infinity && v > 0).length : 0;
-                            return (
-                                <g key={r.id} className="router-node"
-                                    onClick={e => handleRouterClick(e, r.id, setActiveTab)}
-                                    onMouseDown={e => handleRouterMouseDown(e, r.id, svgRef)}
-                                    style={{ cursor: isBoxSelectMode ? "crosshair" : mode === "move" ? "grab" : "pointer" }}>
-                                    {(isPath || isConn || isSel || isMulti || isBroadcasting) && (
-                                        <circle cx={r.x} cy={r.y} r={28} fill="none"
-                                            stroke={isBroadcasting ? T.warn : isMulti ? "#06B6D4" : isPath ? "#F59E0B" : isConn ? "#7B2FBE" : T.accent}
-                                            strokeWidth={isBroadcasting ? 3 : isMulti ? 3.5 : 2.5} 
-                                            opacity={isBroadcasting ? 0.9 : isMulti ? 0.8 : 0.6}
-                                            strokeDasharray={isBroadcasting ? "4,4" : isMulti ? "4 4" : "none"} />
-                                    )}
-                                    <circle cx={r.x} cy={r.y} r={22} fill={r.color} stroke={T.surface} strokeWidth={3} />
-                                    <text x={r.x} y={r.y + 5} textAnchor="middle" fontSize={11} fontWeight={800} fill="white" fontFamily="monospace">
-                                        {r.id}
-                                    </text>
-                                    <text x={r.x} y={r.y + 36} textAnchor="middle" fontSize={9} fill={T.textFaint} fontFamily="monospace">
-                                        {cnt} routes
-                                    </text>
-                                </g>
-                            );
-                        })}
-
-                        {routers.length === 0 && (
-                            <text x="50%" y="52%" textAnchor="middle" fill={T.textFaint} fontSize={13} fontFamily="monospace">
-                                Click canvas to add routers → Connect → Simulate
-                            </text>
-                        )}
-                    </g>
-                </svg>
+                        </Canvas>
+                    </div>
+                </div>
             </div>
 
             {/* ══ RIGHT PANEL ═════════════════════════════════════ */}
