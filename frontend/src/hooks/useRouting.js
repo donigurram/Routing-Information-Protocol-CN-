@@ -1,30 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
-
-export function runBellmanFord(routers, links) {
-    const ids = routers.map(r => r.id);
-    const dist = {}, nextHop = {};
-    ids.forEach(i => {
-        dist[i] = {}; nextHop[i] = {};
-        ids.forEach(j => { dist[i][j] = i === j ? 0 : Infinity; nextHop[i][j] = i === j ? i : null; });
-    });
-    links.filter(l => !l.failed).forEach(l => {
-        dist[l.a][l.b] = l.cost; dist[l.b][l.a] = l.cost;
-        nextHop[l.a][l.b] = l.b; nextHop[l.b][l.a] = l.a;
-    });
-    for (let iter = 0; iter < 15; iter++) {
-        let changed = false;
-        ids.forEach(u => ids.forEach(dest => {
-            if (u === dest) return;
-            links.filter(l => !l.failed && (l.a === u || l.b === u)).forEach(l => {
-                const v = l.a === u ? l.b : l.a;
-                const nd = l.cost + dist[v][dest];
-                if (nd < dist[u][dest] && nd <= 15) { dist[u][dest] = nd; nextHop[u][dest] = v; changed = true; }
-            });
-        }));
-        if (!changed) break;
-    }
-    return { dist, nextHop };
-}
+import { useState, useCallback, useRef, useEffect } from "react";
 
 export function getPath(src, dst, nextHopMap) {
     const path = [src]; let cur = src; const seen = new Set([src]);
@@ -36,18 +10,77 @@ export function getPath(src, dst, nextHopMap) {
     return path;
 }
 
-export function useRouting(routers, links) {
+export function useRouting(routers, links, simRunning) {
     const [ripTables, setRipTables] = useState({});
     const [nextHopMap, setNextHopMap] = useState({});
+    
+    const tablesRef = useRef({ dist: {}, nextHop: {} });
 
-    const recompute = useCallback((rs, ls) => {
-        if (rs.length < 2) { setRipTables({}); setNextHopMap({}); return; }
-        const { dist, nextHop } = runBellmanFord(rs, ls);
-        setRipTables(dist);
-        setNextHopMap(nextHop);
+    const initializeTables = useCallback((rs, ls) => {
+        if (rs.length < 2) { 
+            setRipTables({}); setNextHopMap({}); 
+            tablesRef.current = { dist: {}, nextHop: {} };
+            return; 
+        }
+        const dist = {}, nextHop = {};
+        rs.forEach(r => {
+            dist[r.id] = {}; nextHop[r.id] = {};
+            rs.forEach(j => { dist[r.id][j.id] = r.id === j.id ? 0 : Infinity; nextHop[r.id][j.id] = r.id === j.id ? r.id : null; });
+        });
+        setRipTables({...dist});
+        setNextHopMap({...nextHop});
+        tablesRef.current = { dist, nextHop };
     }, []);
 
-    useEffect(() => { recompute(routers, links); }, [routers, links, recompute]);
+    useEffect(() => {
+        if (!simRunning) initializeTables(routers, links);
+    }, [routers, links, simRunning, initializeTables]);
 
-    return { ripTables, nextHopMap };
+    const applyUpdate = useCallback((to, from, dv, ls, rs, splitHorizon, routePoisoning) => {
+        const prevDist = tablesRef.current.dist;
+        const prevNext = tablesRef.current.nextHop;
+        
+        const newDist = { ...prevDist, [to]: { ...prevDist[to] } };
+        const newNext = { ...prevNext, [to]: { ...prevNext[to] } };
+        
+        const link = ls.find(l => !l.failed && ((l.a === to && l.b === from) || (l.a === from && l.b === to)));
+        if (!link) return false;
+        
+        let changed = false;
+        rs.forEach(dest => {
+            if (dest.id === to) return;
+            const currentMetric = newDist[to][dest.id] !== undefined ? newDist[to][dest.id] : Infinity;
+            let advMetric = dv[dest.id] !== undefined ? dv[dest.id] : Infinity;
+            
+            if (splitHorizon && prevNext[from] && prevNext[from][dest.id] === to) {
+                advMetric = routePoisoning ? 16 : Infinity;
+            }
+            
+            let newMetric = advMetric + link.cost;
+            if (newMetric > 15) newMetric = 16;
+            
+            if (prevNext[to] && prevNext[to][dest.id] === from) {
+                if (newMetric !== currentMetric) {
+                    newDist[to][dest.id] = newMetric;
+                    if (newMetric === 16) newNext[to][dest.id] = null;
+                    changed = true;
+                }
+            } else if (newMetric < currentMetric && newMetric < 16) {
+                newDist[to][dest.id] = newMetric;
+                newNext[to][dest.id] = from;
+                changed = true;
+            }
+        });
+        
+        if (changed) {
+            tablesRef.current = { 
+                dist: { ...prevDist, [to]: newDist[to] }, 
+                nextHop: { ...prevNext, [to]: newNext[to] } 
+            };
+            return true;
+        }
+        return false;
+    }, []);
+
+    return { ripTables, nextHopMap, setRipTables, setNextHopMap, tablesRef, initializeTables, applyUpdate };
 }

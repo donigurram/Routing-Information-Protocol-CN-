@@ -19,13 +19,15 @@ export default function MainView() {
     const [activePath, setActivePath] = useState([]);
     const [activeTab, setActiveTab] = useState("ping");
 
-    const { ripTables, nextHopMap } = useRouting(routers, links);
+    const [simRunning, setSimRunning] = useState(false);
+
+    const { ripTables, nextHopMap, setRipTables, setNextHopMap, tablesRef, initializeTables, applyUpdate } = useRouting(routers, links, simRunning);
 
     const {
-        simRunning, ripRound, converged, animSpeed, setAnimSpeed,
+        ripRound, converged, animSpeed, setAnimSpeed,
         splitHorizon, setSplitHorizon, routePoisoning, setRoutePoisoning,
-        toggleSim, resetSim
-    } = useSimulation(routers, setRouters, setLinks, setPackets);
+        toggleSim, resetSim, activeBroadcaster
+    } = useSimulation(routers, setRouters, links, setLinks, setPackets, simRunning, setSimRunning, tablesRef, applyUpdate, setRipTables, setNextHopMap, initializeTables);
 
     const {
         pingSrc, setPingSrc, pingDst, setPingDst, pingResult, setPingResult, doPing
@@ -299,18 +301,19 @@ export default function MainView() {
                             const isConn = connectFrom === r.id;
                             const isSel = selectedRouter === r.id;
                             const isMulti = multiSelected.includes(r.id);
+                            const isBroadcasting = activeBroadcaster === r.id;
                             const cnt = ripTables[r.id] ? Object.values(ripTables[r.id]).filter(v => v < Infinity && v > 0).length : 0;
                             return (
                                 <g key={r.id} className="router-node"
                                     onClick={e => handleRouterClick(e, r.id, setActiveTab)}
                                     onMouseDown={e => handleRouterMouseDown(e, r.id, svgRef)}
                                     style={{ cursor: isBoxSelectMode ? "crosshair" : mode === "move" ? "grab" : "pointer" }}>
-                                    {(isPath || isConn || isSel || isMulti) && (
+                                    {(isPath || isConn || isSel || isMulti || isBroadcasting) && (
                                         <circle cx={r.x} cy={r.y} r={28} fill="none"
-                                            stroke={isMulti ? "#06B6D4" : isPath ? "#F59E0B" : isConn ? "#7B2FBE" : T.accent}
-                                            strokeWidth={isMulti ? 3.5 : 2.5} 
-                                            strokeDasharray={isMulti ? "4 4" : "none"}
-                                            opacity={0.8} />
+                                            stroke={isBroadcasting ? T.warn : isMulti ? "#06B6D4" : isPath ? "#F59E0B" : isConn ? "#7B2FBE" : T.accent}
+                                            strokeWidth={isBroadcasting ? 3 : isMulti ? 3.5 : 2.5} 
+                                            opacity={isBroadcasting ? 0.9 : isMulti ? 0.8 : 0.6}
+                                            strokeDasharray={isBroadcasting ? "4,4" : isMulti ? "4 4" : "none"} />
                                     )}
                                     <circle cx={r.x} cy={r.y} r={22} fill={r.color} stroke={T.surface} strokeWidth={3} />
                                     <text x={r.x} y={r.y + 5} textAnchor="middle" fontSize={11} fontWeight={800} fill="white" fontFamily="monospace">
