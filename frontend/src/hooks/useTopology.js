@@ -41,6 +41,7 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
     };
 
     const loadCustomPreset = (preset) => {
+        pushHistory();
         resetSim();
         setPackets([]);
         setActivePath([]);
@@ -266,6 +267,8 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
             }
             setSelectionBox(null);
             setIsBoxSelectMode(false);
+            setHasDragged(true);
+            setTimeout(() => setHasDragged(false), 50);
             return;
         }
 
@@ -329,6 +332,7 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
 
     const spawnPreset = (type, size = 5) => {
         if (size < 1) size = 1;
+        pushHistory();
         resetSim();
         setPackets([]);
         setActivePath([]);

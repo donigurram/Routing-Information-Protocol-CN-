@@ -65,7 +65,7 @@ function ToolsCard({ mode, setMode, connectFrom, pendingCost, setPendingCost, T 
             {/* Mode buttons */}
             <div style={{ padding: "8px 8px 4px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5 }}>
                 {modes.map(m => (
-                    <button key={m.k} onClick={() => setMode(m.k)} title={m.label} style={{
+                    <button key={m.k} onClick={() => setMode(mode === m.k ? "none" : m.k)} title={m.label} style={{
                         width: 43, height: 43, borderRadius: 9, cursor: "pointer",
                         display: "flex", flexDirection: "column", alignItems: "center",
                         justifyContent: "center", gap: 2, fontSize: 14, transition: "all .15s",
