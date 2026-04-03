@@ -9,6 +9,11 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
     const [dragOff, setDragOff] = useState({ x: 0, y: 0 });
     const [pendingCost, setPendingCost] = useState(1);
     const [selectedRouter, setSelectedRouter] = useState(null);
+    const [multiSelected, setMultiSelected] = useState([]);
+    const [isBoxSelectMode, setIsBoxSelectMode] = useState(false);
+    const [selectionBox, setSelectionBox] = useState(null);
+    const [dragOffMap, setDragOffMap] = useState({});
+
     const [customPresets, setCustomPresets] = useState(() => {
         try { return JSON.parse(localStorage.getItem('ripCustomPresets')) || []; }
         catch { return []; }
@@ -100,7 +105,19 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
     };
 
     const handleCanvasMouseDown = (e) => {
-        if (e.ctrlKey) {
+        if (isBoxSelectMode) {
+            const svgElement = e.target.closest('svg');
+            if (svgElement) {
+                const rect = svgElement.getBoundingClientRect();
+                const px = e.clientX - rect.left - pan.x;
+                const py = e.clientY - rect.top - pan.y;
+                setSelectionBox({ startX: px, startY: py, endX: px, endY: py });
+            }
+            return;
+        }
+
+        // Allow panning via Ctrl-click, middle/right click, double-click, or just a normal left click on the empty background
+        if (e.ctrlKey || e.button === 1 || e.button === 2 || e.detail >= 2 || (e.button === 0 && e.target.id === 'bg-canvas')) {
             setIsPanning(true);
             setHasDragged(false);
             setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
@@ -109,10 +126,14 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
 
     const handleCanvasClick = (e, svgRef) => {
         setEditingLink(null);
+        if (isBoxSelectMode) return;
+        
+        if (multiSelected.length > 0 && mode !== 'add') {
+             setMultiSelected([]); // Clear multi-select on background click
+        }
         if (e.ctrlKey || hasDragged || isPanning) return;
         if (mode !== "add" || e.target.closest(".router-node")) return;
         const r = svgRef.current.getBoundingClientRect();
-        if (e.clientY - r.top < 52) return;
         const x = e.clientX - r.left - pan.x, y = e.clientY - r.top - pan.y;
         const id = `R${nextId.current++}`;
         const color = ROUTER_COLORS[(routers.length) % ROUTER_COLORS.length];
@@ -121,8 +142,9 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
     };
 
     const handleRouterClick = (e, rid, setActiveTab) => {
-        if (e.ctrlKey || hasDragged || isPanning) return;
+        if (e.ctrlKey || hasDragged || isPanning || isBoxSelectMode) return;
         e.stopPropagation();
+
         if (mode === "connect") {
             if (!connectFrom) { setConnectFrom(rid); }
             else if (connectFrom !== rid) {
@@ -135,8 +157,14 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
             }
         } else if (mode === "delete") {
             pushHistory();
-            setRouters(prev => prev.filter(r => r.id !== rid));
-            setLinks(prev => prev.filter(l => l.a !== rid && l.b !== rid));
+            if (multiSelected.includes(rid)) {
+                setRouters(prev => prev.filter(r => !multiSelected.includes(r.id)));
+                setLinks(prev => prev.filter(l => !multiSelected.includes(l.a) && !multiSelected.includes(l.b)));
+                setMultiSelected([]);
+            } else {
+                setRouters(prev => prev.filter(r => r.id !== rid));
+                setLinks(prev => prev.filter(l => l.a !== rid && l.b !== rid));
+            }
         } else if (mode === "select") {
             setSelectedRouter(rid); 
             if (setActiveTab) setActiveTab("table");
@@ -161,19 +189,40 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
 
     const handleRouterMouseDown = (e, rid, svgRef) => {
         if (e.ctrlKey) return; // let canvas pan handle this
-        if (mode !== "move") return;
+        // Allow dragging multi-selected nodes directly without needing MOVE mode
+        const isInGroup = multiSelected.includes(rid);
+        if (!isInGroup && mode !== "move") return;
         e.stopPropagation();
         const rect = svgRef.current.getBoundingClientRect();
         const px = e.clientX - rect.left - pan.x, py = e.clientY - rect.top - pan.y;
-        const r = routers.find(r => r.id === rid);
-        if (r) {
-            setDragStartRouters([...routers]);
-            setDragging(rid); 
-            setDragOff({ x: px - r.x, y: py - r.y });
+        
+        setDragStartRouters([...routers]);
+
+        if (isInGroup) {
+            setDragging("MULTI");
+            const offMap = {};
+            multiSelected.forEach(id => {
+                const r = routers.find(rt => rt.id === id);
+                if (r) offMap[id] = { x: px - r.x, y: py - r.y };
+            });
+            setDragOffMap(offMap);
+        } else {
+            const r = routers.find(r => r.id === rid);
+            if (r) {
+                setDragging(rid); 
+                setDragOff({ x: px - r.x, y: py - r.y });
+            }
         }
     };
 
     const handleMouseMove = (e, svgRef) => {
+        if (selectionBox) {
+            const rect = svgRef.current.getBoundingClientRect();
+            const px = e.clientX - rect.left - pan.x, py = e.clientY - rect.top - pan.y;
+            setSelectionBox(prev => ({ ...prev, endX: px, endY: py }));
+            return;
+        }
+
         if (isPanning) {
             const newPan = { x: e.clientX - panStart.x, y: e.clientY - panStart.y };
             if (Math.abs(newPan.x - pan.x) > 2 || Math.abs(newPan.y - pan.y) > 2) {
@@ -186,10 +235,40 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
         if (!dragging) return;
         const rect = svgRef.current.getBoundingClientRect();
         const px = e.clientX - rect.left - pan.x, py = e.clientY - rect.top - pan.y;
-        setRouters(prev => prev.map(r => r.id === dragging ? { ...r, x: px - dragOff.x, y: py - dragOff.y } : r));
+        
+        if (dragging === "MULTI") {
+            setRouters(prev => prev.map(r => {
+                if (multiSelected.includes(r.id) && dragOffMap[r.id]) {
+                    return { ...r, x: px - dragOffMap[r.id].x, y: py - dragOffMap[r.id].y };
+                }
+                return r;
+            }));
+        } else {
+            setRouters(prev => prev.map(r => r.id === dragging ? { ...r, x: px - dragOff.x, y: py - dragOff.y } : r));
+        }
     };
 
     const handleMouseUp = () => {
+        if (selectionBox) {
+            const minX = Math.min(selectionBox.startX, selectionBox.endX);
+            const maxX = Math.max(selectionBox.startX, selectionBox.endX);
+            const minY = Math.min(selectionBox.startY, selectionBox.endY);
+            const maxY = Math.max(selectionBox.startY, selectionBox.endY);
+            
+            const inBox = routers.filter(r => 
+                r.x >= minX && r.x <= maxX && r.y >= minY && r.y <= maxY
+            ).map(r => r.id);
+            
+            if (inBox.length > 0) {
+                setMultiSelected(inBox);
+            } else {
+                setMultiSelected([]);
+            }
+            setSelectionBox(null);
+            setIsBoxSelectMode(false);
+            return;
+        }
+
         if (dragging && dragStartRouters) {
             if (JSON.stringify(dragStartRouters) !== JSON.stringify(routers)) {
                 pushHistory(dragStartRouters, links);
@@ -283,7 +362,15 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
         setRouters([]); setLinks([]); setPackets([]); setActivePath([]);
         resetSim();
         setPan({ x: 0, y: 0 });
-        nextId.current = 1; setPingResult(null); setSelectedRouter(null);
+        nextId.current = 1; setPingResult(null); setSelectedRouter(null); setMultiSelected([]);
+    };
+
+    const deleteMultiSelected = () => {
+        if (multiSelected.length === 0) return;
+        pushHistory();
+        setRouters(prev => prev.filter(r => !multiSelected.includes(r.id)));
+        setLinks(prev => prev.filter(l => !multiSelected.includes(l.a) && !multiSelected.includes(l.b)));
+        setMultiSelected([]);
     };
 
     return {
@@ -291,6 +378,10 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
         connectFrom, setConnectFrom,
         pendingCost, setPendingCost,
         selectedRouter, setSelectedRouter,
+        multiSelected, setMultiSelected,
+        isBoxSelectMode, setIsBoxSelectMode,
+        selectionBox,
+        deleteMultiSelected,
         handleCanvasClick, handleRouterClick, handleLinkClick,
         handleCanvasMouseDown, handleRouterMouseDown, handleMouseMove, handleMouseUp,
         loadPreset, spawnPreset, clearAll,

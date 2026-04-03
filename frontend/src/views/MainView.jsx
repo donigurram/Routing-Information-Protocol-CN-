@@ -36,6 +36,9 @@ export default function MainView() {
     const {
         mode, setMode, connectFrom, pendingCost, setPendingCost,
         selectedRouter, setSelectedRouter,
+        multiSelected, setMultiSelected,
+        isBoxSelectMode, setIsBoxSelectMode,
+        selectionBox, deleteMultiSelected,
         handleCanvasClick, handleRouterClick, handleLinkClick,
         handleCanvasMouseDown, handleRouterMouseDown, handleMouseMove, handleMouseUp,
         loadPreset, spawnPreset, clearAll, pan, isPanning,
@@ -49,10 +52,17 @@ export default function MainView() {
                 e.preventDefault();
                 if (canUndo) undo();
             }
+            // Delete key removes multi-selected nodes
+            if ((e.key === 'Delete' || e.key === 'Backspace') && multiSelected.length > 0) {
+                if (document.activeElement.tagName !== 'INPUT') {
+                    e.preventDefault();
+                    deleteMultiSelected();
+                }
+            }
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [canUndo, undo]);
+    }, [canUndo, undo, multiSelected, deleteMultiSelected]);
 
     const isPathLink = (la, lb) => {
         for (let i = 0; i < activePath.length - 1; i++)
@@ -100,8 +110,25 @@ export default function MainView() {
                     }}>
                         {simRunning ? `● RUNNING  —  Rd ${ripRound}` : converged && routers.length > 1 ? "✓ CONVERGED" : "○ IDLE"}
                     </div>
-                    <div style={{ marginLeft: "auto", padding: "3px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, background: mc + "20", color: mc, border: `1px solid ${mc}44` }}>
-                        {modeLabels[mode] || "UNKNOWN"}
+                    
+                    {/* Multi-Select Tool */}
+                    <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+                        <button
+                            onClick={() => setIsBoxSelectMode(!isBoxSelectMode)}
+                            style={{
+                                padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: "pointer",
+                                background: isBoxSelectMode ? T.accent : "transparent",
+                                color: isBoxSelectMode ? "white" : T.accent,
+                                border: `1px solid ${T.accent}`,
+                                transition: "all .2s"
+                            }}
+                        >
+                            {isBoxSelectMode ? "⏹ CANCEL SELECTION" : "⚄ SELECT AREA"}
+                        </button>
+                    </div>
+
+                    <div style={{ padding: "3px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, background: isBoxSelectMode ? T.accent + "20" : mc + "20", color: isBoxSelectMode ? T.accent : mc, border: `1px solid ${isBoxSelectMode ? T.accent : mc}44` }}>
+                        {isBoxSelectMode ? "⚄ DRAW SELECTION BOX" : modeLabels[mode] || "UNKNOWN"}
                     </div>
                     <button
                         onClick={undo}
@@ -128,6 +155,52 @@ export default function MainView() {
                     T={T}
                 />
 
+                {/* Floating Multi-Select Action Bar */}
+                {multiSelected.length > 0 && (
+                    <div style={{
+                        position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)",
+                        zIndex: 30, display: "flex", alignItems: "center", gap: 8,
+                        background: T.surface, border: `1.5px solid #06B6D4`,
+                        borderRadius: 12, padding: "8px 14px",
+                        boxShadow: `0 4px 24px #06B6D444`,
+                    }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "#06B6D4", letterSpacing: "1px" }}>
+                            {multiSelected.length} NODE{multiSelected.length > 1 ? 'S' : ''} SELECTED
+                        </span>
+                        <div style={{ width: 1, height: 16, background: T.border }} />
+                        <button
+                            onClick={() => setMode("move")}
+                            style={{
+                                padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: "pointer",
+                                background: mode === "move" ? "#F59E0B22" : "transparent",
+                                color: "#F59E0B",
+                                border: `1px solid #F59E0B66`,
+                                transition: "all .15s"
+                            }}
+                        >✥ MOVE</button>
+                        <button
+                            onClick={deleteMultiSelected}
+                            style={{
+                                padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: "pointer",
+                                background: T.dangerBg,
+                                color: T.danger,
+                                border: `1px solid ${T.danger}66`,
+                                transition: "all .15s"
+                            }}
+                        >✕ DELETE</button>
+                        <button
+                            onClick={() => setMultiSelected([])}
+                            style={{
+                                padding: "4px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: "pointer",
+                                background: "transparent",
+                                color: T.textFaint,
+                                border: `1px solid ${T.border}`,
+                                transition: "all .15s"
+                            }}
+                        >✕</button>
+                    </div>
+                )}
+
                 {/* Canvas SVG */}
                 <svg
                     ref={svgRef}
@@ -144,9 +217,24 @@ export default function MainView() {
                             <path d="M30 0L0 0 0 30" fill="none" stroke={T.gridLine} strokeWidth="0.8" />
                         </pattern>
                     </defs>
-                    <rect width="100%" height="100%" fill="url(#grid)" />
+                    <rect id="bg-canvas" width="100%" height="100%" fill="url(#grid)" />
 
                     <g transform={`translate(${pan.x}, ${pan.y})`}>
+
+                        {/* Selection Box */}
+                        {selectionBox && (
+                            <rect 
+                                x={Math.min(selectionBox.startX, selectionBox.endX)}
+                                y={Math.min(selectionBox.startY, selectionBox.endY)}
+                                width={Math.abs(selectionBox.endX - selectionBox.startX)}
+                                height={Math.abs(selectionBox.endY - selectionBox.startY)}
+                                fill={T.accent + "22"}
+                                stroke={T.accent}
+                                strokeWidth={1.5}
+                                strokeDasharray="4 4"
+                                style={{ pointerEvents: "none" }}
+                            />
+                        )}
 
                         {/* Links */}
                         {links.map(l => {
@@ -212,19 +300,20 @@ export default function MainView() {
                             const isPath = activePath.includes(r.id);
                             const isConn = connectFrom === r.id;
                             const isSel = selectedRouter === r.id;
+                            const isMulti = multiSelected.includes(r.id);
                             const isBroadcasting = activeBroadcaster === r.id;
                             const cnt = ripTables[r.id] ? Object.values(ripTables[r.id]).filter(v => v < Infinity && v > 0).length : 0;
                             return (
                                 <g key={r.id} className="router-node"
                                     onClick={e => handleRouterClick(e, r.id, setActiveTab)}
                                     onMouseDown={e => handleRouterMouseDown(e, r.id, svgRef)}
-                                    style={{ cursor: mode === "move" ? "grab" : "pointer" }}>
-                                    {(isPath || isConn || isSel || isBroadcasting) && (
+                                    style={{ cursor: isBoxSelectMode ? "crosshair" : mode === "move" ? "grab" : "pointer" }}>
+                                    {(isPath || isConn || isSel || isMulti || isBroadcasting) && (
                                         <circle cx={r.x} cy={r.y} r={28} fill="none"
-                                            stroke={isBroadcasting ? T.warn : isPath ? "#F59E0B" : isConn ? "#7B2FBE" : T.accent}
-                                            strokeWidth={isBroadcasting ? 3 : 2.5} 
-                                            opacity={isBroadcasting ? 0.9 : 0.6}
-                                            strokeDasharray={isBroadcasting ? "4,4" : "none"} />
+                                            stroke={isBroadcasting ? T.warn : isMulti ? "#06B6D4" : isPath ? "#F59E0B" : isConn ? "#7B2FBE" : T.accent}
+                                            strokeWidth={isBroadcasting ? 3 : isMulti ? 3.5 : 2.5} 
+                                            opacity={isBroadcasting ? 0.9 : isMulti ? 0.8 : 0.6}
+                                            strokeDasharray={isBroadcasting ? "4,4" : isMulti ? "4 4" : "none"} />
                                     )}
                                     <circle cx={r.x} cy={r.y} r={22} fill={r.color} stroke={T.surface} strokeWidth={3} />
                                     <text x={r.x} y={r.y + 5} textAnchor="middle" fontSize={11} fontWeight={800} fill="white" fontFamily="monospace">
