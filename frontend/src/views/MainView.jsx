@@ -79,7 +79,7 @@ function NetworkScene({
     multiSelected, isBoxSelectMode, selectionBox,
     handleRouterClick, handleRouterMouseDown, svgRef, setActiveTab,
     isPathLink, getPacketPos, handleLinkClick, editingLink, setEditingLink, updateLinkCost,
-    dragging, handleCanvasClick, handleMouseMove, handleMouseUp, updateRouter3DPos, addRouter3D
+    dragging, handleCanvasClick, handleCanvasMouseDown, handleMouseMove, handleMouseUp, updateRouter3DPos, addRouter3D
 }) {
     const { camera } = useThree();
     const controlsRef = useRef();
@@ -95,12 +95,6 @@ function NetworkScene({
             controlsRef.current.update();
         }
     }, [is3D, camera]);
-
-    const isBoxActive = selectionBox && isBoxSelectMode;
-    const boxW = isBoxActive ? Math.abs(selectionBox.endX - selectionBox.startX) : 0;
-    const boxH = isBoxActive ? Math.abs(selectionBox.endY - selectionBox.startY) : 0;
-    const boxCX = isBoxActive ? (selectionBox.startX + selectionBox.endX) / 2 : 0;
-    const boxCY = isBoxActive ? (selectionBox.startY + selectionBox.endY) / 2 : 0;
 
     return (
         <group>
@@ -146,7 +140,8 @@ function NetworkScene({
                     const evt = { clientX: e.clientX, clientY: e.clientY, point: e.point, target: svgRef.current, ctrlKey: e.ctrlKey, button: e.button };
                     if (isBoxSelectMode) {
                         e.stopPropagation();
-                        handleCanvasMouseDown(evt);
+                        // Pass svgRef to useTopology method
+                        handleCanvasMouseDown(evt, svgRef);
                     }
                 }}
                 onClick={e => {
@@ -172,7 +167,14 @@ function NetworkScene({
                 }}
                 onPointerUp={(e) => {
                     e.stopPropagation();
-                    handleMouseUp();
+                    let screenCoords = null;
+                    if (isBoxSelectMode) {
+                        screenCoords = {};
+                        routers.forEach(r => {
+                            screenCoords[r.id] = getScreenCoords(r);
+                        });
+                    }
+                    handleMouseUp(screenCoords);
                 }}
                 onPointerLeave={(e) => {
                     if (dragging || isBoxSelectMode) handleMouseUp();
@@ -392,8 +394,10 @@ export default function MainView() {
         <div style={{
             display: "flex", height: "100vh", width: "100%",
             fontFamily: "'JetBrains Mono', 'Fira Code', 'IBM Plex Mono', monospace",
-            background: "#0A0D1A", color: T.text, overflow: "hidden",
-            transition: "background .25s, color .25s",
+            backgroundColor: T.bg, backgroundImage: T.bgImage,
+            backgroundSize: T.bgSize, backgroundPosition: T.bgPos,
+            color: T.text, overflow: "hidden",
+            transition: "background-color .25s, color .25s",
         }}>
             <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet" />
 
@@ -530,12 +534,13 @@ export default function MainView() {
                     {/* 3D Scene */}
                     <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 1 }}>
                         <Canvas camera={{ position: [400, 300, 550], fov: 60 }}>
-                            <color attach="background" args={["#060812"]} />
                             <ambientLight intensity={0.6} />
                             <directionalLight position={[100, 100, 300]} intensity={1.2} />
-                            <group position={[400, 300, -400]}>
-                                <Stars radius={1000} depth={300} count={6000} factor={10} saturation={0.5} fade speed={1} />
-                            </group>
+                            {dark && (
+                                <group position={[400, 300, -400]}>
+                                    <Stars radius={1000} depth={300} count={6000} factor={10} saturation={0.5} fade speed={1} />
+                                </group>
+                            )}
                             <NetworkScene 
                                 is3D={is3D} pan={pan} routers={routers} links={links} packets={packets} mode={mode} T={T} 
                                 ripTables={ripTables} activePath={activePath} connectFrom={connectFrom} selectedRouter={selectedRouter}
@@ -543,7 +548,7 @@ export default function MainView() {
                                 handleRouterClick={handleRouterClick} handleRouterMouseDown={handleRouterMouseDown} svgRef={svgRef} setActiveTab={setActiveTab}
                                 isPathLink={isPathLink} getPacketPos={getPacketPos} handleLinkClick={handleLinkClick} 
                                 editingLink={editingLink} setEditingLink={setEditingLink} updateLinkCost={updateLinkCost}
-                                dragging={dragging} handleCanvasClick={handleCanvasClick} handleMouseMove={handleMouseMove} handleMouseUp={handleMouseUp}
+                                dragging={dragging} handleCanvasClick={handleCanvasClick} handleCanvasMouseDown={handleCanvasMouseDown} handleMouseMove={handleMouseMove} handleMouseUp={handleMouseUp}
                                 updateRouter3DPos={updateRouter3DPos} addRouter3D={addRouter3D}
                             />
                         </Canvas>

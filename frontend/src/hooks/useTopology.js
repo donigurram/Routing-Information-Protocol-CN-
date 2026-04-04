@@ -109,16 +109,16 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
         setEditingLink(null);
     };
 
-    const handleCanvasMouseDown = (e) => {
+    const handleCanvasMouseDown = (e, svgRefArg) => {
         if (isBoxSelectMode) {
             // In 3D we pass the raw World Coordinates via e.point
             if (e.point) {
                 setSelectionBox({ startX: e.point.x, startY: e.point.y, endX: e.point.x, endY: e.point.y });
             } else {
                 // Fallback for non-3D / pure SVG legacy
-                const svgElement = e.target.closest('svg') || e.target;
-                if (svgElement && svgElement.getBoundingClientRect) {
-                    const rect = svgElement.getBoundingClientRect();
+                const container = svgRefArg ? svgRefArg.current : (e.target.closest('svg') || e.target);
+                if (container && container.getBoundingClientRect) {
+                    const rect = container.getBoundingClientRect();
                     const px = e.clientX - rect.left - pan.x;
                     const py = e.clientY - rect.top - pan.y;
                     setSelectionBox({ startX: px, startY: py, endX: px, endY: py });
@@ -128,7 +128,7 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
         }
 
         // Allow panning via Ctrl-click, middle/right click, double-click, or just a normal left click on the empty background
-        if (e.ctrlKey || e.button === 1 || e.button === 2 || e.detail >= 2 || (e.button === 0 && e.target.id === 'bg-canvas')) {
+        if (e.ctrlKey || e.button === 1 || e.button === 2 || e.detail >= 2 || (e.button === 0 && (e.target.id === 'bg-canvas' || svgRefArg))) {
             setIsPanning(true);
             setHasDragged(false);
             setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
@@ -276,16 +276,17 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
         }
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = (screenCoords = null) => {
         if (selectionBox) {
-            const minX = Math.min(selectionBox.startX, selectionBox.endX);
-            const maxX = Math.max(selectionBox.startX, selectionBox.endX);
-            const minY = Math.min(selectionBox.startY, selectionBox.endY);
-            const maxY = Math.max(selectionBox.startY, selectionBox.endY);
+            const minX = Math.min(selectionBox.startX, selectionBox.endX) + pan.x;
+            const maxX = Math.max(selectionBox.startX, selectionBox.endX) + pan.x;
+            const minY = Math.min(selectionBox.startY, selectionBox.endY) + pan.y;
+            const maxY = Math.max(selectionBox.startY, selectionBox.endY) + pan.y;
             
-            const inBox = routers.filter(r => 
-                r.x >= minX && r.x <= maxX && r.y >= minY && r.y <= maxY
-            ).map(r => r.id);
+            const inBox = routers.filter(r => {
+                const p = screenCoords && screenCoords[r.id] ? screenCoords[r.id] : { x: r.x + pan.x, y: r.y + pan.y };
+                return p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY;
+            }).map(r => r.id);
             
             if (inBox.length > 0) {
                 setMultiSelected(inBox);
