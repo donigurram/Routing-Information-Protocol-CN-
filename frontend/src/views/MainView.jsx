@@ -79,7 +79,7 @@ function NetworkScene({
     multiSelected, isBoxSelectMode,
     handleRouterClick, handleRouterMouseDown, svgRef, setActiveTab,
     isPathLink, getPacketPos, handleLinkClick, editingLink, setEditingLink, updateLinkCost,
-    dragging, handleCanvasClick, handleMouseMove, handleMouseUp, updateRouter3DPos, addRouter3D
+    dragging, handleCanvasClick, handleCanvasMouseDown, handleMouseMove, handleMouseUp, updateRouter3DPos, addRouter3D
 }) {
     const { camera } = useThree();
     const controlsRef = useRef();
@@ -95,6 +95,17 @@ function NetworkScene({
             controlsRef.current.update();
         }
     }, [is3D, camera]);
+
+    const { size } = useThree();
+
+    const getScreenCoords = (r) => {
+        const vec = new THREE.Vector3(r.x, r.y, r.z || 0);
+        vec.project(camera);
+        return {
+            x: (vec.x * 0.5 + 0.5) * size.width,
+            y: -(vec.y * 0.5 - 0.5) * size.height
+        };
+    };
 
     return (
         <group>
@@ -120,7 +131,8 @@ function NetworkScene({
                     const evt = { clientX: e.clientX, clientY: e.clientY, target: svgRef.current, ctrlKey: e.ctrlKey, button: e.button };
                     if (isBoxSelectMode) {
                         e.stopPropagation();
-                        handleCanvasMouseDown(evt);
+                        // Pass svgRef to useTopology method
+                        handleCanvasMouseDown(evt, svgRef);
                     }
                 }}
                 onClick={e => {
@@ -146,7 +158,14 @@ function NetworkScene({
                 }}
                 onPointerUp={(e) => {
                     e.stopPropagation();
-                    handleMouseUp();
+                    let screenCoords = null;
+                    if (isBoxSelectMode) {
+                        screenCoords = {};
+                        routers.forEach(r => {
+                            screenCoords[r.id] = getScreenCoords(r);
+                        });
+                    }
+                    handleMouseUp(screenCoords);
                 }}
                 onPointerLeave={(e) => {
                     if (dragging || isBoxSelectMode) handleMouseUp();
@@ -530,7 +549,7 @@ export default function MainView() {
                                 handleRouterClick={handleRouterClick} handleRouterMouseDown={handleRouterMouseDown} svgRef={svgRef} setActiveTab={setActiveTab}
                                 isPathLink={isPathLink} getPacketPos={getPacketPos} handleLinkClick={handleLinkClick} 
                                 editingLink={editingLink} setEditingLink={setEditingLink} updateLinkCost={updateLinkCost}
-                                dragging={dragging} handleCanvasClick={handleCanvasClick} handleMouseMove={handleMouseMove} handleMouseUp={handleMouseUp}
+                                dragging={dragging} handleCanvasClick={handleCanvasClick} handleCanvasMouseDown={handleCanvasMouseDown} handleMouseMove={handleMouseMove} handleMouseUp={handleMouseUp}
                                 updateRouter3DPos={updateRouter3DPos} addRouter3D={addRouter3D}
                             />
                         </Canvas>
