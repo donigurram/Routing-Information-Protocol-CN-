@@ -111,12 +111,18 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
 
     const handleCanvasMouseDown = (e) => {
         if (isBoxSelectMode) {
-            const svgElement = e.target.closest('svg');
-            if (svgElement) {
-                const rect = svgElement.getBoundingClientRect();
-                const px = e.clientX - rect.left - pan.x;
-                const py = e.clientY - rect.top - pan.y;
-                setSelectionBox({ startX: px, startY: py, endX: px, endY: py });
+            // In 3D we pass the raw World Coordinates via e.point
+            if (e.point) {
+                setSelectionBox({ startX: e.point.x, startY: e.point.y, endX: e.point.x, endY: e.point.y });
+            } else {
+                // Fallback for non-3D / pure SVG legacy
+                const svgElement = e.target.closest('svg') || e.target;
+                if (svgElement && svgElement.getBoundingClientRect) {
+                    const rect = svgElement.getBoundingClientRect();
+                    const px = e.clientX - rect.left - pan.x;
+                    const py = e.clientY - rect.top - pan.y;
+                    setSelectionBox({ startX: px, startY: py, endX: px, endY: py });
+                }
             }
             return;
         }
@@ -234,10 +240,15 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
     };
 
     const handleMouseMove = (e, svgRef) => {
-        if (selectionBox) {
-            const rect = svgRef.current.getBoundingClientRect();
-            const px = e.clientX - rect.left - pan.x, py = e.clientY - rect.top - pan.y;
-            setSelectionBox(prev => ({ ...prev, endX: px, endY: py }));
+        if (selectionBox && isBoxSelectMode) {
+            if (e.point) {
+                // 3D mode world coordinates
+                setSelectionBox(prev => ({ ...prev, endX: e.point.x, endY: e.point.y }));
+            } else if (svgRef && svgRef.current) {
+                const rect = svgRef.current.getBoundingClientRect();
+                const px = e.clientX - rect.left - pan.x, py = e.clientY - rect.top - pan.y;
+                setSelectionBox(prev => ({ ...prev, endX: px, endY: py }));
+            }
             return;
         }
 

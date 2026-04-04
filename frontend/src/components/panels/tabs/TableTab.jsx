@@ -9,7 +9,7 @@ function TableTab({ routers, ripTables, nextHopMap, selectedRouter, setSelectedR
                 {routers.map(r => (
                     <button key={r.id} onClick={() => setSelectedRouter(r.id)} style={{
                         padding: "4px 11px", borderRadius: 7, cursor: "pointer",
-                        fontSize: 11, fontWeight: 700, fontFamily: "monospace",
+                        fontSize: 15, fontWeight: 700, fontFamily: "monospace",
                         background: selectedRouter === r.id ? r.color : T.bg,
                         color: selectedRouter === r.id ? "white" : T.textMuted,
                         border: `2px solid ${selectedRouter === r.id ? r.color : T.border}`,
@@ -25,15 +25,15 @@ function TableTab({ routers, ripTables, nextHopMap, selectedRouter, setSelectedR
                         <div style={{
                             padding: "9px 12px", borderRadius: "9px 9px 0 0",
                             background: r?.color || T.accent, color: "white",
-                            fontSize: 11, fontWeight: 700, fontFamily: "monospace"
+                            fontSize: 15, fontWeight: 700, fontFamily: "monospace"
                         }}>
                             {selectedRouter} — RIP Routing Table
                         </div>
-                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10, fontFamily: "monospace" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, fontFamily: "monospace" }}>
                             <thead>
                                 <tr style={{ background: T.surfaceAlt }}>
                                     {["DEST", "NEXT HOP", "METRIC"].map(h => (
-                                        <th key={h} style={{ padding: "6px 8px", textAlign: "left", color: T.textFaint, fontWeight: 700, fontSize: 9 }}>{h}</th>
+                                        <th key={h} style={{ padding: "6px 8px", textAlign: "left", color: T.textFaint, fontWeight: 700, fontSize: 14 }}>{h}</th>
                                     ))}
                                 </tr>
                             </thead>
@@ -60,13 +60,13 @@ function TableTab({ routers, ripTables, nextHopMap, selectedRouter, setSelectedR
                                 })}
                             </tbody>
                         </table>
-                        <div style={{ marginTop: 8, padding: 8, background: T.bg, borderRadius: "0 0 8px 8px", fontSize: 9, color: T.textFaint }}>
+                        <div style={{ marginTop: 8, padding: 8, background: T.bg, borderRadius: "0 0 8px 8px", fontSize: 14, color: T.textFaint }}>
                             Direct: 0 hops · Max: 15 · 16 = unreachable
                         </div>
                     </div>
                 );
             })() : (
-                <div style={{ padding: 12, background: T.bg, borderRadius: 9, fontSize: 11, color: T.textFaint }}>
+                <div style={{ padding: 12, background: T.bg, borderRadius: 9, fontSize: 15, color: T.textFaint }}>
                     {routers.length === 0 ? "No routers added yet." : "Select a router above to view its table."}
                 </div>
             )}

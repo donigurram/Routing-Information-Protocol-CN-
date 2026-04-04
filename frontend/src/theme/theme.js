@@ -49,12 +49,12 @@ const theme = {
         fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
         fontFamilyUI: "'Inter', 'Segoe UI', system-ui, sans-serif",
         fontSize: {
-            xs: "11px",
-            sm: "12px",
-            md: "14px",
-            lg: "16px",
-            xl: "20px",
-            xxl: "24px",
+            xs: "12px",
+            sm: "14px",
+            md: "16px",
+            lg: "18px",
+            xl: "24px",
+            xxl: "32px",
         },
         fontWeight: {
             regular: 400,

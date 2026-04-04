@@ -6,9 +6,9 @@ export default function ThemeToggle({ dark, onToggle, T }) {
             onClick={onToggle}
             title={dark ? "Switch to light mode" : "Switch to dark mode"}
             style={{
-                width: 34, height: 34, borderRadius: 9, border: `1.5px solid ${T.border}`,
+                width: 40, height: 40, borderRadius: 9, border: `1.5px solid ${T.border}`,
                 background: T.surfaceAlt, cursor: "pointer", display: "flex",
-                alignItems: "center", justifyContent: "center", fontSize: 16,
+                alignItems: "center", justifyContent: "center", fontSize: 20,
                 transition: "all .2s", flexShrink: 0,
                 color: T.textMuted,
             }}
