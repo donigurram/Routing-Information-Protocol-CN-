@@ -96,6 +96,14 @@ function NetworkScene({
         }
     }, [is3D, camera]);
 
+    const isBoxActive = selectionBox && isBoxSelectMode;
+    const boxW = isBoxActive ? Math.abs(selectionBox.endX - selectionBox.startX) : 0;
+    const boxH = isBoxActive ? Math.abs(selectionBox.endY - selectionBox.startY) : 0;
+    const boxCX = isBoxActive ? (selectionBox.startX + selectionBox.endX) / 2 : 0;
+    const boxCY = isBoxActive ? (selectionBox.startY + selectionBox.endY) / 2 : 0;
+    
+    const clickStartRef = useRef({ x: 0, y: 0 });
+
     return (
         <group>
             <OrbitControls 
@@ -142,11 +150,18 @@ function NetworkScene({
                         e.stopPropagation();
                         // Pass svgRef to useTopology method
                         handleCanvasMouseDown(evt, svgRef);
+                    } else {
+                        clickStartRef.current = { x: e.clientX, y: e.clientY };
                     }
                 }}
                 onClick={e => {
                     if (isBoxSelectMode) return;
                     e.stopPropagation();
+                    
+                    const dx = Math.abs(e.clientX - clickStartRef.current.x);
+                    const dy = Math.abs(e.clientY - clickStartRef.current.y);
+                    if (dx > 5 || dy > 5) return; // Prevent action if user dragged the canvas
+
                     if (mode === "add" && !e.ctrlKey) {
                         addRouter3D(e.point.x, e.point.y, 0);
                     }
