@@ -385,8 +385,10 @@ export default function MainView() {
         <div style={{
             display: "flex", height: "100vh", width: "100%",
             fontFamily: "'JetBrains Mono', 'Fira Code', 'IBM Plex Mono', monospace",
-            background: "#0A0D1A", color: T.text, overflow: "hidden",
-            transition: "background .25s, color .25s",
+            backgroundColor: T.bg, backgroundImage: T.bgImage,
+            backgroundSize: T.bgSize, backgroundPosition: T.bgPos,
+            color: T.text, overflow: "hidden",
+            transition: "background-color .25s, color .25s",
         }}>
             <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet" />
 
@@ -536,12 +538,13 @@ export default function MainView() {
                     {/* 3D Scene */}
                     <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 1 }}>
                         <Canvas camera={{ position: [400, 300, 550], fov: 60 }}>
-                            <color attach="background" args={["#060812"]} />
                             <ambientLight intensity={0.6} />
                             <directionalLight position={[100, 100, 300]} intensity={1.2} />
-                            <group position={[400, 300, -400]}>
-                                <Stars radius={1000} depth={300} count={6000} factor={10} saturation={0.5} fade speed={1} />
-                            </group>
+                            {dark && (
+                                <group position={[400, 300, -400]}>
+                                    <Stars radius={1000} depth={300} count={6000} factor={10} saturation={0.5} fade speed={1} />
+                                </group>
+                            )}
                             <NetworkScene 
                                 is3D={is3D} pan={pan} routers={routers} links={links} packets={packets} mode={mode} T={T} 
                                 ripTables={ripTables} activePath={activePath} connectFrom={connectFrom} selectedRouter={selectedRouter}

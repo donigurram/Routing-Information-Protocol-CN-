@@ -183,8 +183,14 @@ export default function ControlPanel({
                                 background: simRunning ? T.successBg : converged && routers.length > 1 ? T.warnBg : T.bg,
                                 color: simRunning ? T.success : converged && routers.length > 1 ? T.warn : T.textFaint,
                                 borderColor: simRunning ? T.success + "55" : converged && routers.length > 1 ? T.warn + "55" : T.border,
+                                display: "flex", alignItems: "center", gap: 4
                             }}>
-                                {simRunning ? `● Rd ${ripRound}` : converged && routers.length > 1 ? "✓ Done" : "○ Idle"}
+                                {simRunning && (
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeDasharray="30 10" style={{ width: 10, height: 10, animation: "spin 1s linear infinite" }}>
+                                        <circle cx="12" cy="12" r="10" />
+                                    </svg>
+                                )}
+                                {simRunning ? `Rd ${ripRound}` : converged && routers.length > 1 ? "✓ Done" : "○ Idle"}
                             </div>
                         </div>
 
@@ -266,6 +272,7 @@ export default function ControlPanel({
                         borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 10,
                         fontFamily: "'JetBrains Mono', monospace",
                         background: T.dangerBg, color: T.danger,
+                        marginTop: 15,
                     }}>✕  CLEAR ALL</button>
                 </div>
             </div>
