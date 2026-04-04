@@ -77,7 +77,7 @@ function PingTab({ routers, ripTables, nextHopMap, pingSrc, setPingSrc, pingDst,
                                     background: ok ? T.accentBg : T.dangerBg,
                                     color: ok ? T.accent : T.danger
                                 }}>
-                                    {ok ? `${cost} hop${cost !== 1 ? "s" : ""}` : "∞"}
+                                    {ok ? `cost ${cost}` : "∞"}
                                 </span>
                             </div>
                         );

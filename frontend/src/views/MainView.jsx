@@ -266,7 +266,7 @@ function NetworkScene({
                                         min={1} max={15} type="number"
                                     />
                                 ) : (
-                                    l.failed ? "✕" : `🐾 ${l.cost}`
+                                    l.failed ? "✕" : l.cost
                                 )}
                             </div>
                         </Html>
@@ -483,6 +483,20 @@ export default function MainView() {
                         }}
                     >
                         {is3D ? "3D" : "2D"}
+                    </button>
+                    <button
+                        onClick={clearAll}
+                        title="Clear entire network"
+                        style={{
+                            padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                            background: T.danger + "15",
+                            color: T.danger,
+                            border: `1.5px solid ${T.danger}44`,
+                            transition: "all .2s", display: "flex", alignItems: "center", gap: 5,
+                            marginRight: 10
+                        }}
+                    >
+                        ✕ CLEAR ALL
                     </button>
                     <ThemeToggle dark={dark} onToggle={() => setDark(d => !d)} T={T} />
                 </div>

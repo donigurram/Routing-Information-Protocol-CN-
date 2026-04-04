@@ -32,8 +32,19 @@ export function useRouting(routers, links, simRunning) {
         tablesRef.current = { dist, nextHop };
     }, []);
 
+    const prevRoutersRef = useRef(routers);
+    const prevLinksRef = useRef(links);
+
     useEffect(() => {
-        if (!simRunning) initializeTables(routers, links);
+        const routersChanged = prevRoutersRef.current !== routers;
+        const linksChanged = prevLinksRef.current !== links;
+        
+        if (!simRunning && (routersChanged || linksChanged)) {
+            initializeTables(routers, links);
+        }
+        
+        prevRoutersRef.current = routers;
+        prevLinksRef.current = links;
     }, [routers, links, simRunning, initializeTables]);
 
     const applyUpdate = useCallback((to, from, dv, ls, rs, splitHorizon, routePoisoning) => {
@@ -56,7 +67,7 @@ export function useRouting(routers, links, simRunning) {
                 advMetric = routePoisoning ? 16 : Infinity;
             }
             
-            let newMetric = advMetric + link.cost;
+            let newMetric = advMetric + 1;
             if (newMetric > 15) newMetric = 16;
             
             if (prevNext[to] && prevNext[to][dest.id] === from) {

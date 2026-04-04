@@ -173,9 +173,7 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
                     pushHistory();
                     const ra = routers.find(r => r.id === connectFrom);
                     const rb = routers.find(r => r.id === rid);
-                    const dist = Math.hypot(ra.x - rb.x, ra.y - rb.y, (ra.z || 0) - (rb.z || 0));
-                    const autoCost = Math.max(1, Math.min(15, Math.ceil(dist / 60)));
-                    setLinks(prev => [...prev, { id: `${connectFrom}-${rid}`, a: connectFrom, b: rid, cost: autoCost, failed: false }]);
+                    setLinks(prev => [...prev, { id: `${connectFrom}-${rid}`, a: connectFrom, b: rid, cost: pendingCost, failed: false }]);
                 }
                 setConnectFrom(null);
             }
