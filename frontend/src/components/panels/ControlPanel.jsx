@@ -269,13 +269,6 @@ export default function ControlPanel({
                         >{icon} {key.charAt(0).toUpperCase() + key.slice(1)}</button>
                     ))}
                 </div>
-                <button onClick={clearAll} style={{
-                    width: "100%", padding: "7px", border: `1.5px solid ${T.danger}44`,
-                    borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 14,
-                    fontFamily: "'JetBrains Mono', monospace",
-                    background: T.dangerBg, color: T.danger,
-                    marginTop: 15,
-                }}>✕  CLEAR ALL</button>
             </div>
 
             {/* Footer */}
@@ -286,7 +279,7 @@ export default function ControlPanel({
                 display: "flex", justifyContent: "space-between", alignItems: "center",
                 flexShrink: 0,
             }}>
-                <span>RIPv2 · Bellman-Ford · 15 hops</span>
+                <span>RIPv2 · Bellman-Ford · Max Cost 15</span>
                 <span style={{ color: converged && routers.length > 1 ? T.success : T.danger, fontWeight: 700 }}>
                     {converged && routers.length > 1 ? "✓ Conv" : "Pending"}
                 </span>

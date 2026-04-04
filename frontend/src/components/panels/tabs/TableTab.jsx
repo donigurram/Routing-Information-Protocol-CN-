@@ -61,7 +61,7 @@ function TableTab({ routers, ripTables, nextHopMap, selectedRouter, setSelectedR
                             </tbody>
                         </table>
                         <div style={{ marginTop: 8, padding: 8, background: T.bg, borderRadius: "0 0 8px 8px", fontSize: 14, color: T.textFaint }}>
-                            Direct: 0 hops · Max: 15 · 16 = unreachable
+                            Direct: cost 0 · Max: 15 · 16 = unreachable
                         </div>
                     </div>
                 );

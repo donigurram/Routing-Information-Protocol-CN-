@@ -111,7 +111,7 @@ function ToolsCard({ mode, setMode, connectFrom, pendingCost, setPendingCost, T 
                         }}
                     >+</button>
                 </div>
-                <div style={{ fontSize: 13, color: T.textFaint, textAlign: "center", marginTop: 4 }}>hops (1–15)</div>
+                <div style={{ fontSize: 13, color: T.textFaint, textAlign: "center", marginTop: 4 }}>cost (1–15)</div>
             </div>
 
             {/* Connect-from pill */}

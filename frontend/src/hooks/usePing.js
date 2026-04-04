@@ -12,7 +12,7 @@ export function usePing(nextHopMap, animSpeed, setPackets, setActivePath) {
         setActivePath([]);
         if (!path) { setPingResult({ success: false, msg: "No route to host (unreachable)" }); return; }
         const hops = path.length - 1;
-        setPingResult({ success: true, msg: `Reply: ${hops} hop${hops !== 1 ? "s" : ""}`, hops });
+        setPingResult({ success: true, msg: `Reply: path length ${hops}`, hops });
         setActivePath(path);
         for (let i = 0; i < path.length - 1; i++) {
             setTimeout(() => {
