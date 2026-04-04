@@ -21,6 +21,9 @@ export function makeTheme(dark) {
         warnBg: "#2A1A00",
         gridLine: "#1E2240",
         dark: true,
+        bgImage: "radial-gradient(circle, #2D3150 1.5px, transparent 1px)",
+        bgSize: "35px 35px",
+        bgPos: "0 0",
     } : {
         bg: "#F4F6FF",
         surface: "#FFFFFF",
@@ -41,6 +44,9 @@ export function makeTheme(dark) {
         warnBg: "#FFF4E6",
         gridLine: "#DDE3FF",
         dark: false,
+        bgImage: "url('/light-bg.png')",
+        bgSize: "cover",
+        bgPos: "center",
     };
 }
 
