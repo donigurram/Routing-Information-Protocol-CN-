@@ -134,24 +134,14 @@ function AnimatedRouter({ r, isPath, isConn, isSel, cnt, T, handleRouterClick, h
                     <EarthPlanet color={color} isSel={isSel} isPath={isPath} isConn={isConn} />
                 </Suspense>
 
-<<<<<<< HEAD
             <Html center zIndexRange={[100, 50]} position={[0, 0, 22]} style={{ pointerEvents: 'none' }}>
                 <div style={{ textAlign: "center", textShadow: "0 1px 6px rgba(0,0,0,1), 0 0 12px rgba(0,30,80,0.8)" }}>
                     <div style={{ color: "#e0f2fe", fontSize: 13, fontFamily: "monospace", fontWeight: "bold", letterSpacing: '0.5px' }}>
-=======
-            <Html center zIndexRange={[100, 50]} position={[0, 0, 16]} style={{ pointerEvents: 'none' }}>
-                <div style={{ textAlign: "center", textShadow: "0 1px 4px rgba(0,0,0,1)" }}>
-                    <div style={{ color: "#f8fafc", fontSize: 18, fontFamily: "monospace", fontWeight: "bold" }}>
->>>>>>> 2b4a770db37d5b6ac0b211d1517171a2d8ba66af
                         {r.id.toUpperCase()}
                     </div>
                 </div>
                 {cnt > 0 && (
-<<<<<<< HEAD
                     <div style={{ position: "absolute", top: "18px", left: "50%", transform: "translateX(-50%)", fontSize: 10, color: "#7dd3fc", whiteSpace: "nowrap" }}>
-=======
-                    <div style={{ position: "absolute", top: "18px", left: "50%", transform: "translateX(-50%)", fontSize: 14, color: "#94a3b8", whiteSpace: "nowrap" }}>
->>>>>>> 2b4a770db37d5b6ac0b211d1517171a2d8ba66af
                         {cnt} routes
                     </div>
                 )}
@@ -649,7 +639,6 @@ export default function MainView() {
                 >
                     {/* 3D Scene */}
                     <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 1 }}>
-<<<<<<< HEAD
                         <Canvas camera={{ position: [400, 300, 550], fov: 60, far: 20000 }}>
                             <color attach="background" args={["#02040f"]} />
                             {/* Bright ambient so Earth is visible all around */}
@@ -664,16 +653,6 @@ export default function MainView() {
                             <group position={[400, 300, 0]}>
                                 <Stars radius={900} depth={650} count={3500} factor={105} saturation={1.5} fade speed={1.1} />
                             </group>
-=======
-                        <Canvas camera={{ position: [400, 300, 550], fov: 60 }}>
-                            <ambientLight intensity={0.6} />
-                            <directionalLight position={[100, 100, 300]} intensity={1.2} />
-                            {dark && (
-                                <group position={[400, 300, -400]}>
-                                    <Stars radius={1000} depth={300} count={6000} factor={10} saturation={0.5} fade speed={1} />
-                                </group>
-                            )}
->>>>>>> 2b4a770db37d5b6ac0b211d1517171a2d8ba66af
                             <NetworkScene 
                                 is3D={is3D} pan={pan} routers={routers} links={links} packets={packets} mode={mode} T={T} 
                                 ripTables={ripTables} activePath={activePath} connectFrom={connectFrom} selectedRouter={selectedRouter}
