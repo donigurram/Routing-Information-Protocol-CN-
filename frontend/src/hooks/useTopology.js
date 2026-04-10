@@ -111,12 +111,18 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
 
     const handleCanvasMouseDown = (e, svgRefArg) => {
         if (isBoxSelectMode) {
-            const container = svgRefArg ? svgRefArg.current : e.target.closest('svg');
-            if (container) {
-                const rect = container.getBoundingClientRect();
-                const px = e.clientX - rect.left - pan.x;
-                const py = e.clientY - rect.top - pan.y;
-                setSelectionBox({ startX: px, startY: py, endX: px, endY: py });
+            // In 3D we pass the raw World Coordinates via e.point
+            if (e.point) {
+                setSelectionBox({ startX: e.point.x, startY: e.point.y, endX: e.point.x, endY: e.point.y });
+            } else {
+                // Fallback for non-3D / pure SVG legacy
+                const container = svgRefArg ? svgRefArg.current : (e.target.closest('svg') || e.target);
+                if (container && container.getBoundingClientRect) {
+                    const rect = container.getBoundingClientRect();
+                    const px = e.clientX - rect.left - pan.x;
+                    const py = e.clientY - rect.top - pan.y;
+                    setSelectionBox({ startX: px, startY: py, endX: px, endY: py });
+                }
             }
             return;
         }
@@ -167,9 +173,7 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
                     pushHistory();
                     const ra = routers.find(r => r.id === connectFrom);
                     const rb = routers.find(r => r.id === rid);
-                    const dist = Math.hypot(ra.x - rb.x, ra.y - rb.y, (ra.z || 0) - (rb.z || 0));
-                    const autoCost = Math.max(1, Math.min(15, Math.ceil(dist / 60)));
-                    setLinks(prev => [...prev, { id: `${connectFrom}-${rid}`, a: connectFrom, b: rid, cost: autoCost, failed: false }]);
+                    setLinks(prev => [...prev, { id: `${connectFrom}-${rid}`, a: connectFrom, b: rid, cost: pendingCost, failed: false }]);
                 }
                 setConnectFrom(null);
             }
@@ -234,10 +238,15 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
     };
 
     const handleMouseMove = (e, svgRef) => {
-        if (selectionBox) {
-            const rect = svgRef.current.getBoundingClientRect();
-            const px = e.clientX - rect.left - pan.x, py = e.clientY - rect.top - pan.y;
-            setSelectionBox(prev => ({ ...prev, endX: px, endY: py }));
+        if (selectionBox && isBoxSelectMode) {
+            if (e.point) {
+                // 3D mode world coordinates
+                setSelectionBox(prev => ({ ...prev, endX: e.point.x, endY: e.point.y }));
+            } else if (svgRef && svgRef.current) {
+                const rect = svgRef.current.getBoundingClientRect();
+                const px = e.clientX - rect.left - pan.x, py = e.clientY - rect.top - pan.y;
+                setSelectionBox(prev => ({ ...prev, endX: px, endY: py }));
+            }
             return;
         }
 

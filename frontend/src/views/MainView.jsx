@@ -134,14 +134,24 @@ function AnimatedRouter({ r, isPath, isConn, isSel, cnt, T, handleRouterClick, h
                     <EarthPlanet color={color} isSel={isSel} isPath={isPath} isConn={isConn} />
                 </Suspense>
 
+<<<<<<< HEAD
             <Html center zIndexRange={[100, 50]} position={[0, 0, 22]} style={{ pointerEvents: 'none' }}>
                 <div style={{ textAlign: "center", textShadow: "0 1px 6px rgba(0,0,0,1), 0 0 12px rgba(0,30,80,0.8)" }}>
                     <div style={{ color: "#e0f2fe", fontSize: 13, fontFamily: "monospace", fontWeight: "bold", letterSpacing: '0.5px' }}>
+=======
+            <Html center zIndexRange={[100, 50]} position={[0, 0, 16]} style={{ pointerEvents: 'none' }}>
+                <div style={{ textAlign: "center", textShadow: "0 1px 4px rgba(0,0,0,1)" }}>
+                    <div style={{ color: "#f8fafc", fontSize: 18, fontFamily: "monospace", fontWeight: "bold" }}>
+>>>>>>> 2b4a770db37d5b6ac0b211d1517171a2d8ba66af
                         {r.id.toUpperCase()}
                     </div>
                 </div>
                 {cnt > 0 && (
+<<<<<<< HEAD
                     <div style={{ position: "absolute", top: "18px", left: "50%", transform: "translateX(-50%)", fontSize: 10, color: "#7dd3fc", whiteSpace: "nowrap" }}>
+=======
+                    <div style={{ position: "absolute", top: "18px", left: "50%", transform: "translateX(-50%)", fontSize: 14, color: "#94a3b8", whiteSpace: "nowrap" }}>
+>>>>>>> 2b4a770db37d5b6ac0b211d1517171a2d8ba66af
                         {cnt} routes
                     </div>
                 )}
@@ -153,7 +163,7 @@ function AnimatedRouter({ r, isPath, isConn, isSel, cnt, T, handleRouterClick, h
 
 function NetworkScene({ 
     is3D, pan, routers, links, packets, mode, T, ripTables, activePath, connectFrom, selectedRouter,
-    multiSelected, isBoxSelectMode,
+    multiSelected, isBoxSelectMode, selectionBox,
     handleRouterClick, handleRouterMouseDown, svgRef, setActiveTab,
     isPathLink, getPacketPos, handleLinkClick, editingLink, setEditingLink, updateLinkCost,
     dragging, handleCanvasClick, handleCanvasMouseDown, handleMouseMove, handleMouseUp, updateRouter3DPos, addRouter3D
@@ -173,16 +183,13 @@ function NetworkScene({
         }
     }, [is3D, camera]);
 
-    const { size } = useThree();
-
-    const getScreenCoords = (r) => {
-        const vec = new THREE.Vector3(r.x, r.y, r.z || 0);
-        vec.project(camera);
-        return {
-            x: (vec.x * 0.5 + 0.5) * size.width,
-            y: -(vec.y * 0.5 - 0.5) * size.height
-        };
-    };
+    const isBoxActive = selectionBox && isBoxSelectMode;
+    const boxW = isBoxActive ? Math.abs(selectionBox.endX - selectionBox.startX) : 0;
+    const boxH = isBoxActive ? Math.abs(selectionBox.endY - selectionBox.startY) : 0;
+    const boxCX = isBoxActive ? (selectionBox.startX + selectionBox.endX) / 2 : 0;
+    const boxCY = isBoxActive ? (selectionBox.startY + selectionBox.endY) / 2 : 0;
+    
+    const clickStartRef = useRef({ x: 0, y: 0 });
 
     return (
         <group>
@@ -201,20 +208,47 @@ function NetworkScene({
                 target={[400, 300, 0]} 
             />
 
+            {isBoxActive && boxW > 0 && boxH > 0 && (
+                <>
+                    <mesh position={[boxCX, boxCY, 5]}>
+                        <planeGeometry args={[boxW, boxH]} />
+                        <meshBasicMaterial color="#06B6D4" transparent opacity={0.15} side={THREE.DoubleSide} />
+                    </mesh>
+                    <Line
+                        points={[
+                            [boxCX - boxW/2, boxCY - boxH/2, 5.1],
+                            [boxCX + boxW/2, boxCY - boxH/2, 5.1],
+                            [boxCX + boxW/2, boxCY + boxH/2, 5.1],
+                            [boxCX - boxW/2, boxCY + boxH/2, 5.1],
+                            [boxCX - boxW/2, boxCY - boxH/2, 5.1]
+                        ]}
+                        color="#06B6D4"
+                        lineWidth={1.5}
+                    />
+                </>
+            )}
+
             {/* Background Invisible Raycast World Plane Z=0 */}
             <mesh 
                 position={[0,0,0]}
                 onPointerDown={e => {
-                    const evt = { clientX: e.clientX, clientY: e.clientY, target: svgRef.current, ctrlKey: e.ctrlKey, button: e.button };
+                    const evt = { clientX: e.clientX, clientY: e.clientY, point: e.point, target: svgRef.current, ctrlKey: e.ctrlKey, button: e.button };
                     if (isBoxSelectMode) {
                         e.stopPropagation();
                         // Pass svgRef to useTopology method
                         handleCanvasMouseDown(evt, svgRef);
+                    } else {
+                        clickStartRef.current = { x: e.clientX, y: e.clientY };
                     }
                 }}
                 onClick={e => {
                     if (isBoxSelectMode) return;
                     e.stopPropagation();
+                    
+                    const dx = Math.abs(e.clientX - clickStartRef.current.x);
+                    const dy = Math.abs(e.clientY - clickStartRef.current.y);
+                    if (dx > 5 || dy > 5) return; // Prevent action if user dragged the canvas
+
                     if (mode === "add" && !e.ctrlKey) {
                         addRouter3D(e.point.x, e.point.y, 0);
                     }
@@ -225,10 +259,10 @@ function NetworkScene({
                 onPointerMove={e => {
                     if (isBoxSelectMode || dragging) {
                         e.stopPropagation();
-                        // For smooth dragging, we use the intersection point on the horizontal plane
                         handleMouseMove({
                             clientX: e.clientX,
                             clientY: e.clientY,
+                            point: e.point,
                             ctrlKey: false
                         }, svgRef);
                     }
@@ -313,13 +347,13 @@ function NetworkScene({
                                         style={{
                                             width: 30, height: 20, border: 'none', background: 'transparent',
                                             color: "#000",
-                                            textAlign: 'center', fontSize: 12, fontWeight: "bold",
+                                            textAlign: 'center', fontSize: 16, fontWeight: "bold",
                                             fontFamily: 'monospace', outline: 'none', padding: 0, margin: 0
                                         }}
                                         min={1} max={15} type="number"
                                     />
                                 ) : (
-                                    l.failed ? "✕" : `🐾 ${l.cost}`
+                                    l.failed ? "✕" : l.cost
                                 )}
                             </div>
                         </Html>
@@ -376,7 +410,7 @@ function NetworkScene({
             
             {routers.length === 0 && (
                 <Html center position={[0,-10,0]} style={{ pointerEvents: 'none', width: 400, textAlign: 'center' }}>
-                    <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "monospace" }}>
+                    <div style={{ color: T.textFaint, fontSize: 17, fontFamily: "monospace" }}>
                         Click canvas to add routers → Connect → Simulate
                     </div>
                 </Html>
@@ -462,8 +496,10 @@ export default function MainView() {
         <div style={{
             display: "flex", height: "100vh", width: "100%",
             fontFamily: "'JetBrains Mono', 'Fira Code', 'IBM Plex Mono', monospace",
-            background: "#0A0D1A", color: T.text, overflow: "hidden",
-            transition: "background .25s, color .25s",
+            backgroundColor: T.bg, backgroundImage: T.bgImage,
+            backgroundSize: T.bgSize, backgroundPosition: T.bgPos,
+            color: T.text, overflow: "hidden",
+            transition: "background-color .25s, color .25s",
         }}>
             <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet" />
 
@@ -472,15 +508,16 @@ export default function MainView() {
                 {/* Top bar */}
                 <div style={{
                     position: "absolute", top: 0, left: 0, right: 0, zIndex: 20,
+                    height: 56, boxSizing: "border-box",
                     background: T.surface, borderBottom: `1.5px solid ${T.border}`,
-                    padding: "8px 16px", display: "flex", alignItems: "center", gap: 10,
+                    padding: "0 16px", display: "flex", alignItems: "center", gap: 10,
                     transition: "background .25s, border-color .25s",
                 }}>
-                    <div style={{ fontWeight: 800, fontSize: 14, color: T.accent, letterSpacing: "1px" }}>
-                        RIPv2 <span style={{ color: T.textFaint, fontWeight: 400, fontSize: 11 }}>Simulator</span>
+                    <div style={{ fontWeight: 800, fontSize: 18, color: T.accent, letterSpacing: "1px" }}>
+                        RIPv2 <span style={{ color: T.textFaint, fontWeight: 400, fontSize: 15 }}>Simulator</span>
                     </div>
                     <div style={{
-                        padding: "2px 10px", borderRadius: 20, fontSize: 10, fontWeight: 700, border: "1px solid",
+                        padding: "2px 10px", borderRadius: 20, fontSize: 14, fontWeight: 700, border: "1px solid",
                         background: simRunning ? T.successBg : converged && routers.length > 1 ? T.warnBg : T.bg,
                         color: simRunning ? T.success : converged && routers.length > 1 ? T.warn : T.textFaint,
                         borderColor: simRunning ? T.success + "55" : converged && routers.length > 1 ? T.warn + "55" : T.border,
@@ -493,7 +530,7 @@ export default function MainView() {
                         <button
                             onClick={() => setIsBoxSelectMode(!isBoxSelectMode)}
                             style={{
-                                padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: "pointer",
+                                padding: "4px 10px", borderRadius: 6, fontSize: 14, fontWeight: 700, cursor: "pointer",
                                 background: isBoxSelectMode ? T.accent : "transparent",
                                 color: isBoxSelectMode ? "white" : T.accent,
                                 border: `1px solid ${T.accent}`,
@@ -504,7 +541,7 @@ export default function MainView() {
                         </button>
                     </div>
 
-                    <div style={{ padding: "3px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, background: isBoxSelectMode ? T.accent + "20" : mc + "20", color: isBoxSelectMode ? T.accent : mc, border: `1px solid ${isBoxSelectMode ? T.accent : mc}44` }}>
+                    <div style={{ padding: "3px 11px", borderRadius: 7, fontSize: 15, fontWeight: 700, background: isBoxSelectMode ? T.accent + "20" : mc + "20", color: isBoxSelectMode ? T.accent : mc, border: `1px solid ${isBoxSelectMode ? T.accent : mc}44` }}>
                         {isBoxSelectMode ? "⚄ DRAW SELECTION BOX" : modeLabels[mode] || "UNKNOWN"}
                     </div>
                     <button
@@ -512,7 +549,7 @@ export default function MainView() {
                         disabled={!canUndo}
                         title="Undo (Ctrl+Z)"
                         style={{
-                            padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: canUndo ? "pointer" : "not-allowed",
+                            padding: "5px 12px", borderRadius: 8, fontSize: 16, fontWeight: 700, cursor: canUndo ? "pointer" : "not-allowed",
                             background: canUndo ? T.surfaceAlt : "transparent",
                             color: canUndo ? T.text : T.textFaint,
                             border: `1.5px solid ${canUndo ? T.border : "transparent"}`,
@@ -524,7 +561,7 @@ export default function MainView() {
                     <button
                         onClick={() => setIs3D(!is3D)}
                         style={{
-                            padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                            padding: "5px 12px", borderRadius: 8, fontSize: 16, fontWeight: 700, cursor: "pointer",
                             background: is3D ? T.accent + "20" : T.surfaceAlt,
                             color: is3D ? T.accent : T.text,
                             border: `1.5px solid ${is3D ? T.accent : T.border}`,
@@ -533,6 +570,20 @@ export default function MainView() {
                         }}
                     >
                         {is3D ? "3D" : "2D"}
+                    </button>
+                    <button
+                        onClick={clearAll}
+                        title="Clear entire network"
+                        style={{
+                            padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                            background: T.danger + "15",
+                            color: T.danger,
+                            border: `1.5px solid ${T.danger}44`,
+                            transition: "all .2s", display: "flex", alignItems: "center", gap: 5,
+                            marginRight: 10
+                        }}
+                    >
+                        ✕ CLEAR ALL
                     </button>
                     <ThemeToggle dark={dark} onToggle={() => setDark(d => !d)} T={T} />
                 </div>
@@ -554,14 +605,14 @@ export default function MainView() {
                         borderRadius: 12, padding: "8px 14px",
                         boxShadow: `0 4px 24px #06B6D444`,
                     }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: "#06B6D4", letterSpacing: "1px" }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "#06B6D4", letterSpacing: "1px" }}>
                             {multiSelected.length} NODE{multiSelected.length > 1 ? 'S' : ''} SELECTED
                         </span>
                         <div style={{ width: 1, height: 16, background: T.border }} />
                         <button
                             onClick={() => setMode("move")}
                             style={{
-                                padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: "pointer",
+                                padding: "4px 10px", borderRadius: 6, fontSize: 14, fontWeight: 700, cursor: "pointer",
                                 background: mode === "move" ? "#F59E0B22" : "transparent",
                                 color: "#F59E0B",
                                 border: `1px solid #F59E0B66`,
@@ -571,7 +622,7 @@ export default function MainView() {
                         <button
                             onClick={deleteMultiSelected}
                             style={{
-                                padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: "pointer",
+                                padding: "4px 10px", borderRadius: 6, fontSize: 14, fontWeight: 700, cursor: "pointer",
                                 background: T.dangerBg,
                                 color: T.danger,
                                 border: `1px solid ${T.danger}66`,
@@ -581,7 +632,7 @@ export default function MainView() {
                         <button
                             onClick={() => setMultiSelected([])}
                             style={{
-                                padding: "4px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: "pointer",
+                                padding: "4px 8px", borderRadius: 6, fontSize: 14, fontWeight: 700, cursor: "pointer",
                                 background: "transparent",
                                 color: T.textFaint,
                                 border: `1px solid ${T.border}`,
@@ -596,22 +647,9 @@ export default function MainView() {
                     ref={svgRef}
                     style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 10 }}
                 >
-                    {selectionBox && (
-                        <div style={{
-                            position: "absolute",
-                            zIndex: 20,
-                            backgroundColor: "rgba(6, 182, 212, 0.15)",
-                            border: "1px dashed #06B6D4",
-                            pointerEvents: "none",
-                            left: Math.min(selectionBox.startX, selectionBox.endX) + pan.x,
-                            top: Math.min(selectionBox.startY, selectionBox.endY) + pan.y,
-                            width: Math.abs(selectionBox.endX - selectionBox.startX),
-                            height: Math.abs(selectionBox.endY - selectionBox.startY)
-                        }} />
-                    )}
-
                     {/* 3D Scene */}
                     <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 1 }}>
+<<<<<<< HEAD
                         <Canvas camera={{ position: [400, 300, 550], fov: 60, far: 20000 }}>
                             <color attach="background" args={["#02040f"]} />
                             {/* Bright ambient so Earth is visible all around */}
@@ -626,10 +664,20 @@ export default function MainView() {
                             <group position={[400, 300, 0]}>
                                 <Stars radius={900} depth={650} count={3500} factor={105} saturation={1.5} fade speed={1.1} />
                             </group>
+=======
+                        <Canvas camera={{ position: [400, 300, 550], fov: 60 }}>
+                            <ambientLight intensity={0.6} />
+                            <directionalLight position={[100, 100, 300]} intensity={1.2} />
+                            {dark && (
+                                <group position={[400, 300, -400]}>
+                                    <Stars radius={1000} depth={300} count={6000} factor={10} saturation={0.5} fade speed={1} />
+                                </group>
+                            )}
+>>>>>>> 2b4a770db37d5b6ac0b211d1517171a2d8ba66af
                             <NetworkScene 
                                 is3D={is3D} pan={pan} routers={routers} links={links} packets={packets} mode={mode} T={T} 
                                 ripTables={ripTables} activePath={activePath} connectFrom={connectFrom} selectedRouter={selectedRouter}
-                                multiSelected={multiSelected} isBoxSelectMode={isBoxSelectMode}
+                                multiSelected={multiSelected} isBoxSelectMode={isBoxSelectMode} selectionBox={selectionBox}
                                 handleRouterClick={handleRouterClick} handleRouterMouseDown={handleRouterMouseDown} svgRef={svgRef} setActiveTab={setActiveTab}
                                 isPathLink={isPathLink} getPacketPos={getPacketPos} handleLinkClick={handleLinkClick} 
                                 editingLink={editingLink} setEditingLink={setEditingLink} updateLinkCost={updateLinkCost}

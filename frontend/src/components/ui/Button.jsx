@@ -14,7 +14,7 @@ export default function Button({ children, onClick, variant = "default", disable
         <button onClick={onClick} disabled={disabled} style={{
             width: "100%", padding: "9px 12px", borderRadius: 9,
             cursor: disabled ? "not-allowed" : "pointer",
-            fontWeight: 700, fontSize: 11,
+            fontWeight: 700, fontSize: 15,
             fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
             opacity: disabled ? .45 : 1, transition: "all .15s", ...v, ...style
         }}>
