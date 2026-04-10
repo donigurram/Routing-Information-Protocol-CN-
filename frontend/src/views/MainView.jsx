@@ -259,14 +259,7 @@ function NetworkScene({
                 }}
                 onPointerUp={(e) => {
                     e.stopPropagation();
-                    let screenCoords = null;
-                    if (isBoxSelectMode) {
-                        screenCoords = {};
-                        routers.forEach(r => {
-                            screenCoords[r.id] = getScreenCoords(r);
-                        });
-                    }
-                    handleMouseUp(screenCoords);
+                    handleMouseUp(null);
                 }}
                 onPointerLeave={(e) => {
                     if (dragging || isBoxSelectMode) handleMouseUp();
@@ -498,16 +491,16 @@ export default function MainView() {
                 {/* Top bar */}
                 <div style={{
                     position: "absolute", top: 0, left: 0, right: 0, zIndex: 20,
-                    height: 56, boxSizing: "border-box",
-                    background: T.surface, borderBottom: `1.5px solid ${T.border}`,
-                    padding: "0 16px", display: "flex", alignItems: "center", gap: 10,
+                    height: 48, boxSizing: "border-box",
+                    background: T.surface, borderBottom: `1px solid ${T.border}`,
+                    padding: "0 12px", display: "flex", alignItems: "center", gap: 8,
                     transition: "background .25s, border-color .25s",
                 }}>
-                    <div style={{ fontWeight: 800, fontSize: 18, color: T.accent, letterSpacing: "1px" }}>
-                        RIPv2 <span style={{ color: T.textFaint, fontWeight: 400, fontSize: 15 }}>Simulator</span>
+                    <div style={{ fontWeight: 800, fontSize: 16, color: T.accent, letterSpacing: "1px" }}>
+                        RIPv2 <span style={{ color: T.textFaint, fontWeight: 400, fontSize: 13 }}>Simulator</span>
                     </div>
                     <div style={{
-                        padding: "2px 10px", borderRadius: 20, fontSize: 14, fontWeight: 700, border: "1px solid",
+                        padding: "2px 8px", borderRadius: 20, fontSize: 12, fontWeight: 700, border: "1px solid",
                         background: simRunning ? T.successBg : converged && routers.length > 1 ? T.warnBg : T.bg,
                         color: simRunning ? T.success : converged && routers.length > 1 ? T.warn : T.textFaint,
                         borderColor: simRunning ? T.success + "55" : converged && routers.length > 1 ? T.warn + "55" : T.border,
@@ -516,22 +509,22 @@ export default function MainView() {
                     </div>
                     
                     {/* Multi-Select Tool */}
-                    <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
                         <button
                             onClick={() => setIsBoxSelectMode(!isBoxSelectMode)}
                             style={{
-                                padding: "4px 10px", borderRadius: 6, fontSize: 14, fontWeight: 700, cursor: "pointer",
+                                padding: "4px 8px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer",
                                 background: isBoxSelectMode ? T.accent : "transparent",
                                 color: isBoxSelectMode ? "white" : T.accent,
                                 border: `1px solid ${T.accent}`,
                                 transition: "all .2s"
                             }}
                         >
-                            {isBoxSelectMode ? "⏹ CANCEL SELECTION" : "⚄ SELECT AREA"}
+                            {isBoxSelectMode ? "⏹ CANCEL" : "⚄ SELECT AREA"}
                         </button>
                     </div>
 
-                    <div style={{ padding: "3px 11px", borderRadius: 7, fontSize: 15, fontWeight: 700, background: isBoxSelectMode ? T.accent + "20" : mc + "20", color: isBoxSelectMode ? T.accent : mc, border: `1px solid ${isBoxSelectMode ? T.accent : mc}44` }}>
+                    <div style={{ padding: "3px 8px", borderRadius: 6, fontSize: 12, fontWeight: 700, background: isBoxSelectMode ? T.accent + "20" : mc + "20", color: isBoxSelectMode ? T.accent : mc, border: `1px solid ${isBoxSelectMode ? T.accent : mc}44` }}>
                         {isBoxSelectMode ? "⚄ DRAW SELECTION BOX" : modeLabels[mode] || "UNKNOWN"}
                     </div>
                     <button
@@ -539,11 +532,11 @@ export default function MainView() {
                         disabled={!canUndo}
                         title="Undo (Ctrl+Z)"
                         style={{
-                            padding: "5px 12px", borderRadius: 8, fontSize: 16, fontWeight: 700, cursor: canUndo ? "pointer" : "not-allowed",
+                            padding: "4px 8px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: canUndo ? "pointer" : "not-allowed",
                             background: canUndo ? T.surfaceAlt : "transparent",
                             color: canUndo ? T.text : T.textFaint,
-                            border: `1.5px solid ${canUndo ? T.border : "transparent"}`,
-                            transition: "all .2s", display: "flex", alignItems: "center", gap: 5
+                            border: `1px solid ${canUndo ? T.border : "transparent"}`,
+                            transition: "all .2s", display: "flex", alignItems: "center", gap: 4
                         }}
                     >
                         ↶ UNDO
@@ -551,12 +544,12 @@ export default function MainView() {
                     <button
                         onClick={() => setIs3D(!is3D)}
                         style={{
-                            padding: "5px 12px", borderRadius: 8, fontSize: 16, fontWeight: 700, cursor: "pointer",
+                            padding: "4px 8px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer",
                             background: is3D ? T.accent + "20" : T.surfaceAlt,
                             color: is3D ? T.accent : T.text,
-                            border: `1.5px solid ${is3D ? T.accent : T.border}`,
-                            transition: "all .2s", display: "flex", alignItems: "center", gap: 5,
-                            marginLeft: 10, marginRight: 10
+                            border: `1px solid ${is3D ? T.accent : T.border}`,
+                            transition: "all .2s", display: "flex", alignItems: "center", gap: 4,
+                            marginLeft: 4, marginRight: 4
                         }}
                     >
                         {is3D ? "3D" : "2D"}
@@ -565,12 +558,12 @@ export default function MainView() {
                         onClick={clearAll}
                         title="Clear entire network"
                         style={{
-                            padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                            padding: "4px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer",
                             background: T.danger + "15",
                             color: T.danger,
-                            border: `1.5px solid ${T.danger}44`,
-                            transition: "all .2s", display: "flex", alignItems: "center", gap: 5,
-                            marginRight: 10
+                            border: `1px solid ${T.danger}44`,
+                            transition: "all .2s", display: "flex", alignItems: "center", gap: 4,
+                            marginRight: 8
                         }}
                     >
                         ✕ CLEAR ALL
