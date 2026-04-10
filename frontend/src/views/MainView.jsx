@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from "react";
-import { Canvas, useThree, useFrame } from '@react-three/fiber';
+import React, { useState, useRef, useEffect, Suspense } from "react";
+import { Canvas, useThree, useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Html, Line, Sphere, OrbitControls, Grid, TransformControls, Stars } from '@react-three/drei';
 import { useTheme } from "../hooks/useTheme";
@@ -11,6 +11,92 @@ import ThemeToggle from "../components/ui/ThemeToggle";
 
 import ControlPanel from "../components/panels/ControlPanel";
 import ToolsCard from "../components/panels/ToolsCard";
+
+// Real Earth node — textures loaded via R3F useLoader (no DOM, no canvas)
+function EarthPlanet({ color, isSel, isPath, isConn }) {
+    const planetRef = useRef();
+    const cloudsRef = useRef();
+
+    // Real Earth textures — served locally from /public (no CORS issues)
+    const [colorMap, cloudsMap, bumpMap, specMap] = useLoader(THREE.TextureLoader, [
+        '/earth-color.jpg',
+        '/earth-clouds.png',
+        '/earth-bump.jpg',
+        '/earth-spec.jpg',
+    ]);
+
+    // Slow axial rotation — different speeds for planet vs clouds
+    useFrame((_, delta) => {
+        if (planetRef.current)  planetRef.current.rotation.y  += delta * 0.12;
+        if (cloudsRef.current)  cloudsRef.current.rotation.y  += delta * 0.16;
+    });
+
+    const hlColor   = isSel ? '#10b981' : isPath ? '#F59E0B' : isConn ? '#a855f7' : color;
+    const ringAlpha = isSel ? 0.65 : 0.5;
+
+    return (
+        <group>
+            {/* Blue atmospheric glow — backface disc slightly behind planet */}
+            <mesh position={[0, 0, -1]}>
+                <circleGeometry args={[30, 64]} />
+                <meshBasicMaterial color="#1a6fc4" transparent opacity={0.20} depthWrite={false} />
+            </mesh>
+
+            {/* Outer blue atmosphere shell */}
+            <mesh>
+                <sphereGeometry args={[21.8, 48, 48]} />
+                <meshBasicMaterial
+                    color={new THREE.Color(0.12, 0.40, 0.95)}
+                    transparent opacity={0.15}
+                    depthWrite={false}
+                    side={THREE.BackSide}
+                />
+            </mesh>
+
+            {/* Selection / path / connect highlight ring */}
+            {(isSel || isPath || isConn) && (
+                <mesh position={[0, 0, -0.5]}>
+                    <ringGeometry args={[22.5, 25.5, 64]} />
+                    <meshBasicMaterial color={hlColor} transparent opacity={ringAlpha} depthWrite={false} />
+                </mesh>
+            )}
+            {/* Second outer pulse ring when selected */}
+            {isSel && (
+                <mesh position={[0, 0, -0.8]}>
+                    <ringGeometry args={[26.25, 28.1, 64]} />
+                    <meshBasicMaterial color={hlColor} transparent opacity={0.25} depthWrite={false} />
+                </mesh>
+            )}
+
+            {/* ── EARTH SURFACE ── real NASA Blue Marble texture */}
+            <mesh ref={planetRef}>
+                <sphereGeometry args={[20, 64, 64]} />
+                <meshPhongMaterial
+                    map={colorMap}
+                    emissiveMap={colorMap}
+                    emissive={new THREE.Color(0xffffff)}
+                    emissiveIntensity={0.9}
+                    bumpMap={bumpMap}
+                    bumpScale={0.5}
+                    specularMap={specMap}
+                    specular={new THREE.Color(0x6688aa)}
+                    shininess={35}
+                />
+            </mesh>
+
+            {/* ── CLOUD LAYER ── semi-transparent, rotates faster */}
+            <mesh ref={cloudsRef}>
+                <sphereGeometry args={[20.75, 64, 64]} />
+                <meshPhongMaterial
+                    map={cloudsMap}
+                    alphaMap={cloudsMap}
+                    transparent opacity={0.82}
+                    depthWrite={false}
+                />
+            </mesh>
+        </group>
+    );
+}
 
 function AnimatedRouter({ r, isPath, isConn, isSel, cnt, T, handleRouterClick, handleRouterMouseDown, svgRef, pan, setActiveTab, mode, updateRouter3DPos }) {
     const palette = ["#4361EE", "#06D6A0", "#EF233C", "#F77F00", "#7B2FBE", "#0077B6"];
@@ -38,33 +124,34 @@ function AnimatedRouter({ r, isPath, isConn, isSel, cnt, T, handleRouterClick, h
                 onClick={e => { e.stopPropagation(); handleRouterClick(e.nativeEvent || e, r.id, setActiveTab); }}
                 onPointerDown={e => { e.stopPropagation(); if(handleRouterMouseDown) handleRouterMouseDown({clientX: e.clientX, clientY: e.clientY, ctrlKey: e.ctrlKey}, r.id, svgRef); }}
             >
-                {/* Glowing Sphere */}
-            <group position={[0, 0, 0]}>
-                <mesh>
-                    <sphereGeometry args={[16, 32, 32]} />
-                    <meshStandardMaterial 
-                        color="#0f172a" 
-                        emissive={isSel ? "#10b981" : color} 
-                        emissiveIntensity={isSel ? 0.8 : 0.5} 
-                        roughness={0.1} 
-                        metalness={0.6} 
-                    />
-                </mesh>
-                {/* Subtle Outer Glow Halo to blend strongly with links/background */}
-                <mesh position={[0, 0, -1]}>
-                    <circleGeometry args={[22, 32]} />
-                    <meshBasicMaterial color={isSel ? "#10b981" : color} transparent opacity={0.15} />
-                </mesh>
-            </group>
+                {/* Real Earth Planet — Suspense handles CDN texture load */}
+                <Suspense fallback={
+                    <mesh>
+                        <sphereGeometry args={[20, 32, 32]} />
+                        <meshStandardMaterial color="#0a3d6b" roughness={0.5} />
+                    </mesh>
+                }>
+                    <EarthPlanet color={color} isSel={isSel} isPath={isPath} isConn={isConn} />
+                </Suspense>
 
+<<<<<<< HEAD
+            <Html center zIndexRange={[100, 50]} position={[0, 0, 22]} style={{ pointerEvents: 'none' }}>
+                <div style={{ textAlign: "center", textShadow: "0 1px 6px rgba(0,0,0,1), 0 0 12px rgba(0,30,80,0.8)" }}>
+                    <div style={{ color: "#e0f2fe", fontSize: 13, fontFamily: "monospace", fontWeight: "bold", letterSpacing: '0.5px' }}>
+=======
             <Html center zIndexRange={[100, 50]} position={[0, 0, 16]} style={{ pointerEvents: 'none' }}>
                 <div style={{ textAlign: "center", textShadow: "0 1px 4px rgba(0,0,0,1)" }}>
                     <div style={{ color: "#f8fafc", fontSize: 18, fontFamily: "monospace", fontWeight: "bold" }}>
+>>>>>>> 2b4a770db37d5b6ac0b211d1517171a2d8ba66af
                         {r.id.toUpperCase()}
                     </div>
                 </div>
                 {cnt > 0 && (
+<<<<<<< HEAD
+                    <div style={{ position: "absolute", top: "18px", left: "50%", transform: "translateX(-50%)", fontSize: 10, color: "#7dd3fc", whiteSpace: "nowrap" }}>
+=======
                     <div style={{ position: "absolute", top: "18px", left: "50%", transform: "translateX(-50%)", fontSize: 14, color: "#94a3b8", whiteSpace: "nowrap" }}>
+>>>>>>> 2b4a770db37d5b6ac0b211d1517171a2d8ba66af
                         {cnt} routes
                     </div>
                 )}
@@ -562,6 +649,22 @@ export default function MainView() {
                 >
                     {/* 3D Scene */}
                     <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 1 }}>
+<<<<<<< HEAD
+                        <Canvas camera={{ position: [400, 300, 550], fov: 60, far: 20000 }}>
+                            <color attach="background" args={["#02040f"]} />
+                            {/* Bright ambient so Earth is visible all around */}
+                            <ambientLight intensity={1.8} color="#ffffff" />
+                            {/* Sun-like key light from upper-front */}
+                            <directionalLight position={[400, 300, 800]} intensity={4.5} color="#fff8f0" />
+                            {/* Warm fill from opposite side */}
+                            <pointLight position={[600, 100, 300]} intensity={1.8} color="#c0d8ff" distance={3000} />
+                            {/* Front fill so dark side isn't pitch black */}
+                            <pointLight position={[400, 300, 600]} intensity={1.2} color="#ffffff" distance={2000} />
+                            {/* Vivid starfield - dense and colourful */}
+                            <group position={[400, 300, 0]}>
+                                <Stars radius={900} depth={650} count={3500} factor={105} saturation={1.5} fade speed={1.1} />
+                            </group>
+=======
                         <Canvas camera={{ position: [400, 300, 550], fov: 60 }}>
                             <ambientLight intensity={0.6} />
                             <directionalLight position={[100, 100, 300]} intensity={1.2} />
@@ -570,6 +673,7 @@ export default function MainView() {
                                     <Stars radius={1000} depth={300} count={6000} factor={10} saturation={0.5} fade speed={1} />
                                 </group>
                             )}
+>>>>>>> 2b4a770db37d5b6ac0b211d1517171a2d8ba66af
                             <NetworkScene 
                                 is3D={is3D} pan={pan} routers={routers} links={links} packets={packets} mode={mode} T={T} 
                                 ripTables={ripTables} activePath={activePath} connectFrom={connectFrom} selectedRouter={selectedRouter}
