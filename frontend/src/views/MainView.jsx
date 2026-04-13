@@ -13,7 +13,7 @@ import ControlPanel from "../components/panels/ControlPanel";
 import ToolsCard from "../components/panels/ToolsCard";
 
 // Real Earth node — textures loaded via R3F useLoader (no DOM, no canvas)
-function EarthPlanet({ color, isSel, isPath, isConn }) {
+function EarthPlanet({ color, isSel, isPath, isConn, isBroadcasting }) {
     const planetRef = useRef();
     const cloudsRef = useRef();
 
@@ -31,8 +31,8 @@ function EarthPlanet({ color, isSel, isPath, isConn }) {
         if (cloudsRef.current)  cloudsRef.current.rotation.y  += delta * 0.16;
     });
 
-    const hlColor   = isSel ? '#10b981' : isPath ? '#F59E0B' : isConn ? '#a855f7' : color;
-    const ringAlpha = isSel ? 0.65 : 0.5;
+    const hlColor   = isSel ? '#10b981' : isBroadcasting ? '#06b6d4' : isPath ? '#F59E0B' : isConn ? '#a855f7' : color;
+    const ringAlpha = (isSel || isBroadcasting) ? 0.65 : 0.5;
 
     return (
         <group>
@@ -53,18 +53,18 @@ function EarthPlanet({ color, isSel, isPath, isConn }) {
                 />
             </mesh>
 
-            {/* Selection / path / connect highlight ring */}
-            {(isSel || isPath || isConn) && (
-                <mesh position={[0, 0, -0.5]}>
+            {/* Selection / path / connect / broadcast highlight ring */}
+            {(isSel || isPath || isConn || isBroadcasting) && (
+                <mesh position={[0, 0, 0]}>
                     <ringGeometry args={[22.5, 25.5, 64]} />
-                    <meshBasicMaterial color={hlColor} transparent opacity={ringAlpha} depthWrite={false} />
+                    <meshBasicMaterial color={hlColor} transparent opacity={ringAlpha} depthWrite={false} side={THREE.DoubleSide} />
                 </mesh>
             )}
-            {/* Second outer pulse ring when selected */}
-            {isSel && (
-                <mesh position={[0, 0, -0.8]}>
+            {/* Second outer pulse ring when selected or broadcasting */}
+            {(isSel || isBroadcasting) && (
+                <mesh position={[0, 0, 0]}>
                     <ringGeometry args={[26.25, 28.1, 64]} />
-                    <meshBasicMaterial color={hlColor} transparent opacity={0.25} depthWrite={false} />
+                    <meshBasicMaterial color={hlColor} transparent opacity={0.25} depthWrite={false} side={THREE.DoubleSide} />
                 </mesh>
             )}
 
@@ -98,7 +98,7 @@ function EarthPlanet({ color, isSel, isPath, isConn }) {
     );
 }
 
-function AnimatedRouter({ r, isPath, isConn, isSel, cnt, T, handleRouterClick, handleRouterMouseDown, svgRef, pan, setActiveTab, mode, updateRouter3DPos }) {
+function AnimatedRouter({ r, isPath, isConn, isSel, isBroadcasting, cnt, T, handleRouterClick, handleRouterMouseDown, svgRef, pan, setActiveTab, mode, updateRouter3DPos }) {
     const palette = ["#4361EE", "#06D6A0", "#EF233C", "#F77F00", "#7B2FBE", "#0077B6"];
     const cIdx = parseInt(r.id.replace('R','')) || 0;
     const color = palette[cIdx % palette.length];
@@ -131,20 +131,28 @@ function AnimatedRouter({ r, isPath, isConn, isSel, cnt, T, handleRouterClick, h
                         <meshStandardMaterial color="#0a3d6b" roughness={0.5} />
                     </mesh>
                 }>
-                    <EarthPlanet color={color} isSel={isSel} isPath={isPath} isConn={isConn} />
+                    <EarthPlanet color={color} isSel={isSel} isPath={isPath} isConn={isConn} isBroadcasting={isBroadcasting} />
                 </Suspense>
 
-            <Html center zIndexRange={[100, 50]} position={[0, 0, 22]} style={{ pointerEvents: 'none' }}>
-                <div style={{ textAlign: "center", textShadow: "0 1px 6px rgba(0,0,0,1), 0 0 12px rgba(0,30,80,0.8)" }}>
-                    <div style={{ color: "#e0f2fe", fontSize: 13, fontFamily: "monospace", fontWeight: "bold", letterSpacing: '0.5px' }}>
+            <Html center zIndexRange={[100, 50]} position={[0, 0, 0]} style={{ pointerEvents: 'none' }}>
+                <div style={{ 
+                    textAlign: "center", 
+                    background: "rgba(0,0,0,0.65)", 
+                    padding: "4px 10px", 
+                    borderRadius: "8px", 
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+                    backdropFilter: "blur(2px)"
+                }}>
+                    <div style={{ color: "#ffffff", fontSize: 15, fontFamily: "monospace", fontWeight: "bold", letterSpacing: '1px' }}>
                         {r.id.toUpperCase()}
                     </div>
+                    {cnt > 0 && (
+                        <div style={{ fontSize: 11, color: "#38bdf8", whiteSpace: "nowrap", marginTop: "2px" }}>
+                            {cnt} {cnt === 1 ? 'route' : 'routes'}
+                        </div>
+                    )}
                 </div>
-                {cnt > 0 && (
-                    <div style={{ position: "absolute", top: "18px", left: "50%", transform: "translateX(-50%)", fontSize: 10, color: "#7dd3fc", whiteSpace: "nowrap" }}>
-                        {cnt} routes
-                    </div>
-                )}
             </Html>
             </group>
         </>
@@ -153,7 +161,7 @@ function AnimatedRouter({ r, isPath, isConn, isSel, cnt, T, handleRouterClick, h
 
 function NetworkScene({ 
     is3D, pan, routers, links, packets, mode, T, ripTables, activePath, connectFrom, selectedRouter,
-    multiSelected, isBoxSelectMode, selectionBox,
+    multiSelected, isBoxSelectMode, selectionBox, activeBroadcaster,
     handleRouterClick, handleRouterMouseDown, svgRef, setActiveTab,
     isPathLink, getPacketPos, handleLinkClick, editingLink, setEditingLink, updateLinkCost,
     dragging, handleCanvasClick, handleCanvasMouseDown, handleMouseMove, handleMouseUp, updateRouter3DPos, addRouter3D
@@ -220,6 +228,7 @@ function NetworkScene({
 
             {/* Background Invisible Raycast World Plane Z=0 */}
             <mesh 
+                name="CanvasPlane"
                 position={[0,0,0]}
                 onPointerDown={e => {
                     const evt = { clientX: e.clientX, clientY: e.clientY, point: e.point, target: svgRef.current, ctrlKey: e.ctrlKey, button: e.button };
@@ -228,11 +237,20 @@ function NetworkScene({
                         // Pass svgRef to useTopology method
                         handleCanvasMouseDown(evt, svgRef);
                     } else {
+                        // Yield to scene objects so we don't intercept pointer down for routers from the back
+                        const hitOther = e.intersections.some(hit => hit.object.name !== "CanvasPlane" && hit.object.type !== "Points");
+                        if (hitOther) return;
+                        
                         clickStartRef.current = { x: e.clientX, y: e.clientY };
                     }
                 }}
                 onClick={e => {
                     if (isBoxSelectMode) return;
+                    
+                    // Yield to any other intersected meshes (routers, links) so the invisible plane doesn't block them 
+                    const hitOther = e.intersections.some(hit => hit.object.name !== "CanvasPlane" && hit.object.type !== "Points");
+                    if (hitOther) return; 
+
                     e.stopPropagation();
                     
                     const dx = Math.abs(e.clientX - clickStartRef.current.x);
@@ -387,8 +405,9 @@ function NetworkScene({
                 const isPath = activePath.includes(r.id);
                 const isConn = connectFrom === r.id;
                 const isSel = selectedRouter === r.id || multiSelected?.includes(r.id);
+                const isBroadcasting = activeBroadcaster === r.id;
                 const cnt = ripTables[r.id] ? Object.values(ripTables[r.id]).filter(v => v < Infinity && v > 0).length : 0;
-                return <AnimatedRouter key={r.id} r={r} isPath={isPath} isConn={isConn} isSel={isSel} cnt={cnt} T={T} handleRouterClick={handleRouterClick} handleRouterMouseDown={handleRouterMouseDown} svgRef={svgRef} pan={pan} setActiveTab={setActiveTab} mode={mode} updateRouter3DPos={updateRouter3DPos} />;
+                return <AnimatedRouter key={r.id} r={r} isPath={isPath} isConn={isConn} isSel={isSel} isBroadcasting={isBroadcasting} cnt={cnt} T={T} handleRouterClick={handleRouterClick} handleRouterMouseDown={handleRouterMouseDown} svgRef={svgRef} pan={pan} setActiveTab={setActiveTab} mode={mode} updateRouter3DPos={updateRouter3DPos} />;
             })}
             
             {routers.length === 0 && (
@@ -467,7 +486,11 @@ export default function MainView() {
     const getPacketPos = pkt => {
         const from = routers.find(r => r.id === pkt.from), to = routers.find(r => r.id === pkt.to);
         if (!from || !to) return null;
-        return { x: from.x + (to.x - from.x) * pkt.t, y: from.y + (to.y - from.y) * pkt.t };
+        return { 
+            x: from.x + (to.x - from.x) * pkt.t, 
+            y: from.y + (to.y - from.y) * pkt.t,
+            z: (from.z || 0) + ((to.z || 0) - (from.z || 0)) * pkt.t
+        };
     };
 
     const modeColors = { add: T.accent, connect: "#7B2FBE", delete: T.danger, move: T.warn, fail: "#9B5DE5", select: T.success, none: T.textFaint };
@@ -649,7 +672,7 @@ export default function MainView() {
                             <NetworkScene 
                                 is3D={is3D} pan={pan} routers={routers} links={links} packets={packets} mode={mode} T={T} 
                                 ripTables={ripTables} activePath={activePath} connectFrom={connectFrom} selectedRouter={selectedRouter}
-                                multiSelected={multiSelected} isBoxSelectMode={isBoxSelectMode} selectionBox={selectionBox}
+                                multiSelected={multiSelected} isBoxSelectMode={isBoxSelectMode} selectionBox={selectionBox} activeBroadcaster={activeBroadcaster}
                                 handleRouterClick={handleRouterClick} handleRouterMouseDown={handleRouterMouseDown} svgRef={svgRef} setActiveTab={setActiveTab}
                                 isPathLink={isPathLink} getPacketPos={getPacketPos} handleLinkClick={handleLinkClick} 
                                 editingLink={editingLink} setEditingLink={setEditingLink} updateLinkCost={updateLinkCost}
