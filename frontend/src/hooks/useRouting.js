@@ -1,13 +1,23 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 
-export function getPath(src, dst, nextHopMap) {
-    const path = [src]; let cur = src; const seen = new Set([src]);
-    while (cur !== dst) {
-        const n = nextHopMap[cur]?.[dst];
-        if (!n || seen.has(n)) return null;
-        path.push(n); seen.add(n); cur = n;
+export function getPath(src, dst, nextHopMap, routers, links) {
+    if (src === dst) return { path: [src], success: true };
+
+    const path = [src];
+    let curR = src;
+    const seenR = new Set([curR]);
+
+    while (curR !== dst) {
+        let nxt = nextHopMap[curR] ? nextHopMap[curR][dst] : null;
+        if (!nxt || seenR.has(nxt)) {
+            return { path: null, error: `Destination Unreachable` };
+        }
+        path.push(nxt);
+        seenR.add(nxt);
+        curR = nxt;
     }
-    return path;
+
+    return { path, success: true };
 }
 
 export function useRouting(routers, links, simRunning) {
@@ -22,11 +32,23 @@ export function useRouting(routers, links, simRunning) {
             tablesRef.current = { dist: {}, nextHop: {} };
             return; 
         }
+        
         const dist = {}, nextHop = {};
+        
         rs.forEach(r => {
             dist[r.id] = {}; nextHop[r.id] = {};
-            rs.forEach(j => { dist[r.id][j.id] = r.id === j.id ? 0 : Infinity; nextHop[r.id][j.id] = r.id === j.id ? r.id : null; });
+            rs.forEach(j => { 
+                dist[r.id][j.id] = r.id === j.id ? 0 : Infinity; 
+                nextHop[r.id][j.id] = r.id === j.id ? r.id : null; 
+            });
+            
+            ls.filter(l => !l.failed && (l.a === r.id || l.b === r.id)).forEach(l => {
+                const neighborId = l.a === r.id ? l.b : l.a;
+                dist[r.id][neighborId] = l.cost;
+                nextHop[r.id][neighborId] = neighborId;
+            });
         });
+
         setRipTables({...dist});
         setNextHopMap({...nextHop});
         tablesRef.current = { dist, nextHop };
@@ -47,15 +69,15 @@ export function useRouting(routers, links, simRunning) {
         prevLinksRef.current = links;
     }, [routers, links, simRunning, initializeTables]);
 
-    const applyUpdate = useCallback((to, from, dv, ls, rs, splitHorizon, routePoisoning) => {
+    const applyUpdate = useCallback((to, from, dv, hopCost, rs, splitHorizon, routePoisoning) => {
         const prevDist = tablesRef.current.dist;
         const prevNext = tablesRef.current.nextHop;
         
+        // Dest Router might not exist if topology changed instantly
+        if (!prevDist[to]) return false;
+        
         const newDist = { ...prevDist, [to]: { ...prevDist[to] } };
         const newNext = { ...prevNext, [to]: { ...prevNext[to] } };
-        
-        const link = ls.find(l => !l.failed && ((l.a === to && l.b === from) || (l.a === from && l.b === to)));
-        if (!link) return false;
         
         let changed = false;
         rs.forEach(dest => {
@@ -67,7 +89,7 @@ export function useRouting(routers, links, simRunning) {
                 advMetric = routePoisoning ? 16 : Infinity;
             }
             
-            let newMetric = advMetric + 1;
+            let newMetric = advMetric + hopCost;
             if (newMetric > 15) newMetric = 16;
             
             if (prevNext[to] && prevNext[to][dest.id] === from) {

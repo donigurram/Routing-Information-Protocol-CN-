@@ -36,7 +36,6 @@ export function useSimulation(routers, setRouters, links, setLinks, setPackets, 
                 broadcasterUIRef.current = null;
                 setActiveBroadcaster(null);
                 initializeTables(routers, links);
-                // Seed the queue with EVERY router to start the initial network discovery phase
                 if (routers.length > 0) {
                     broadcastQueueRef.current = [...routers.map(r => r.id)];
                 }
@@ -46,7 +45,6 @@ export function useSimulation(routers, setRouters, links, setLinks, setPackets, 
     };
 
     useEffect(() => {
-        if (!simRunning) return;
         let last = 0;
         const loop = ts => {
             if (ts - last > 1000 / 60) {
@@ -58,7 +56,8 @@ export function useSimulation(routers, setRouters, links, setLinks, setPackets, 
                 const ls = linksRef.current;
                 let newlySpawnedPackets = [];
                 
-                if (tickRef.current % interval === 0) {
+                // Only spawn routing packets if sim is actually running
+                if (simRunning && tickRef.current % interval === 0) {
                     if (rs.length > 0 && broadcastQueueRef.current.length > 0) {
                         const rId = broadcastQueueRef.current.shift();
                         broadcasterUIRef.current = rId;
@@ -73,6 +72,8 @@ export function useSimulation(routers, setRouters, links, setLinks, setPackets, 
                                     to: dst, t: 0, 
                                     type: "update", 
                                     dv,
+                                    originalSender: r.id,
+                                    accumulatedCost: l.cost,
                                     color: ROUTER_COLORS[rs.findIndex(x => x.id === r.id) % ROUTER_COLORS.length] 
                                 });
                             });
@@ -80,21 +81,28 @@ export function useSimulation(routers, setRouters, links, setLinks, setPackets, 
                     }
                 }
                 
-                // Advance packets
+                // Advance ALL packets (both Simulation 'update' packets and 'ping' packets)
                 setPackets(prev => {
+                    // Fast exit if no packets to process and sim not running
+                    if (!simRunning && prev.length === 0 && newlySpawnedPackets.length === 0) return prev;
+                    
                     const nextPkts = [];
                     
                     prev.forEach(p => {
                         p.t += 0.04 * animSpeed;
                         if (p.t >= 1) {
-                            if (p.type === "update") {
-                                if (applyUpdate(p.to, p.from, p.dv, ls, rs, splitHorizon, routePoisoning)) {
-                                    hasChangesRef.current = true;
-                                    pendingUIUpdateRef.current = true;
-                                    
-                                    // Triggered Update: Enqueue destination router if it's not already broadcasting next
-                                    if (!broadcastQueueRef.current.includes(p.to)) {
-                                        broadcastQueueRef.current.push(p.to);
+                            if (p.type === "update" && simRunning) {
+                                const destNode = rs.find(r => r.id === p.to);
+                                
+                                if (destNode) {
+                                    if (applyUpdate(p.to, p.originalSender || p.from, p.dv, p.accumulatedCost || 1, rs, splitHorizon, routePoisoning)) {
+                                        hasChangesRef.current = true;
+                                        pendingUIUpdateRef.current = true;
+                                        
+                                        // Triggered Update: Enqueue destination router if it's not already broadcasting next
+                                        if (!broadcastQueueRef.current.includes(p.to)) {
+                                            broadcastQueueRef.current.push(p.to);
+                                        }
                                     }
                                 }
                             }
@@ -106,7 +114,7 @@ export function useSimulation(routers, setRouters, links, setLinks, setPackets, 
                     const combinedPackets = [...nextPkts, ...newlySpawnedPackets];
                     
                     // Convergence check: queue is empty and NO packets are flying
-                    if (broadcastQueueRef.current.length === 0 && combinedPackets.length === 0) {
+                    if (simRunning && broadcastQueueRef.current.length === 0 && combinedPackets.length === 0) {
                         broadcasterUIRef.current = null;
                         if (hasChangesRef.current) {
                             setRipRound(r => r + 1);
@@ -125,7 +133,10 @@ export function useSimulation(routers, setRouters, links, setLinks, setPackets, 
                     pendingUIUpdateRef.current = false;
                 }
                 
-                setActiveBroadcaster(prev => prev !== broadcasterUIRef.current ? broadcasterUIRef.current : prev);
+                setActiveBroadcaster(prev => {
+                    const curr = simRunning ? broadcasterUIRef.current : null;
+                    return prev !== curr ? curr : prev;
+                });
             }
             animRef.current = requestAnimationFrame(loop);
         };

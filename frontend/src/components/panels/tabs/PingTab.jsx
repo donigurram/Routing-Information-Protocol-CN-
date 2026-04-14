@@ -1,7 +1,19 @@
-import React from "react";
-import { SectionLabel } from "../ControlPanel";
+import React, { useEffect, useRef } from "react";
+import { SectionLabel, Toggle } from "../ControlPanel";
 
-function PingTab({ routers, ripTables, nextHopMap, pingSrc, setPingSrc, pingDst, setPingDst, doPing, pingResult, activePath, T }) {
+function PingTab({ 
+    routers, ripTables, nextHopMap, 
+    pingSrc, setPingSrc, pingDst, setPingDst, 
+    doPing, pingResult, activePath, 
+    pingDebug, setPingDebug, pingTTL, setPingTTL, pingLogs,
+    T 
+}) {
+    const logsContainerRef = useRef(null);
+    useEffect(() => {
+        if (logsContainerRef.current) {
+            logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight;
+        }
+    }, [pingLogs]);
     return (
         <div>
             <SectionLabel T={T}>Ping Test</SectionLabel>
@@ -25,6 +37,24 @@ function PingTab({ routers, ripTables, nextHopMap, pingSrc, setPingSrc, pingDst,
                     </div>
                 );
             })}
+            {/* Settings Row */}
+            <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                    <div style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, marginBottom: 4 }}>Time-To-Live</div>
+                    <input type="number" min="1" max="255" value={pingTTL} onChange={e => setPingTTL(parseInt(e.target.value) || 64)} 
+                    style={{
+                        width: "100%", padding: "5px 8px", border: `1.5px solid ${T.border}`, borderRadius: 7,
+                        fontSize: 15, fontFamily: "monospace", color: T.text, background: T.surface, boxSizing: "border-box"
+                    }} />
+                </div>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                    <div style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, marginBottom: 4 }}>Debug (Any node)</div>
+                    <div style={{ display: "flex", alignItems: "center", height: "100%", paddingLeft: 4 }}>
+                        <Toggle value={pingDebug} onChange={setPingDebug} T={T} />
+                    </div>
+                </div>
+            </div>
+
             <button onClick={doPing} disabled={!pingSrc || !pingDst} style={{
                 width: "100%", padding: "10px",
                 border: `1.5px solid ${pingSrc && pingDst ? T.warn + "88" : T.border}`,
@@ -35,54 +65,27 @@ function PingTab({ routers, ripTables, nextHopMap, pingSrc, setPingSrc, pingDst,
                 marginBottom: 12, transition: "all .15s"
             }}>🏓  SEND PING</button>
 
-            {pingResult ? (
-                <div style={{
-                    padding: 12, borderRadius: 9,
-                    background: pingResult.success ? T.successBg : T.dangerBg,
-                    border: `1px solid ${pingResult.success ? T.success + "55" : T.danger + "55"}`
-                }}>
-                    <div style={{ fontWeight: 700, fontSize: 16, color: pingResult.success ? T.success : T.danger, marginBottom: 4 }}>
-                        {pingResult.success ? "✓ SUCCESS" : "✕ UNREACHABLE"}
+            {/* Event Logs Box */}
+            <div ref={logsContainerRef} style={{
+                padding: 10, background: '#0a0a0a', border: `1.5px solid ${T.border}`, borderRadius: 9, 
+                fontSize: 13, color: '#10b981', fontFamily: "'JetBrains Mono', monospace",
+                height: 140, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4,
+                boxShadow: "inset 0 2px 4px rgba(0,0,0,0.5)"
+            }}>
+                {pingLogs.length === 0 ? (
+                    <div style={{ color: "#555", textAlign: "center", fontStyle: "italic", marginTop: 10 }}>
+                        Awaiting ICMP execution...
                     </div>
-                    <div style={{ fontSize: 15, color: pingResult.success ? T.success : T.danger, fontFamily: "monospace" }}>
-                        {pingResult.msg}
-                    </div>
-                    {activePath.length > 0 && (
-                        <div style={{ marginTop: 6, fontSize: 14, color: T.textMuted }}>
-                            Path: {activePath.join(" → ")}
+                ) : (
+                    pingLogs.map((log, i) => (
+                        <div key={i} style={{ display: "flex", gap: 6, opacity: i === pingLogs.length - 1 ? 1 : 0.7 }}>
+                            <span style={{ color: "#555" }}>[{i.toString().padStart(2, '0')}]</span>
+                            <span style={{ color: log.includes('✕') ? '#EF4444' : log.includes('✓') ? '#10B981' : '#EAB308' }}>
+                                {log}
+                            </span>
                         </div>
-                    )}
-                </div>
-            ) : (
-                <div style={{ padding: 10, background: T.bg, borderRadius: 9, border: `1px solid ${T.border}`, fontSize: 14, color: T.textFaint }}>
-                    Select source and destination, then send ping to visualize route.
-                </div>
-            )}
-
-            <div style={{ marginTop: 16 }}>
-                <SectionLabel T={T}>All Routes</SectionLabel>
-                {routers.length === 0
-                    ? <div style={{ fontSize: 15, color: T.textFaint }}>No routers added yet.</div>
-                    : routers.map(src => routers.filter(d => d.id !== src.id).map(dst => {
-                        const cost = ripTables[src.id]?.[dst.id];
-                        const ok = cost !== undefined && cost < Infinity;
-                        return (
-                            <div key={`${src.id}-${dst.id}`} style={{
-                                display: "flex", justifyContent: "space-between", alignItems: "center",
-                                padding: "3px 0", borderBottom: `1px solid ${T.border}`, fontSize: 14
-                            }}>
-                                <span style={{ fontFamily: "monospace", color: T.textMuted }}>{src.id} → {dst.id}</span>
-                                <span style={{
-                                    padding: "1px 7px", borderRadius: 4, fontWeight: 700, fontSize: 14,
-                                    background: ok ? T.accentBg : T.dangerBg,
-                                    color: ok ? T.accent : T.danger
-                                }}>
-                                    {ok ? `cost ${cost}` : "∞"}
-                                </span>
-                            </div>
-                        );
-                    }))
-                }
+                    ))
+                )}
             </div>
         </div>
     );

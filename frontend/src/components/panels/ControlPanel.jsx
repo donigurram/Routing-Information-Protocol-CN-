@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import PingTab from "./tabs/PingTab";
 import TableTab from "./tabs/TableTab";
+import RoutesTab from "./tabs/RoutesTab";
 
 export function Toggle({ value, onChange, T }) {
     return (
@@ -56,13 +57,8 @@ export default function ControlPanel({
     converged,
     activeTab,
     setActiveTab,
-    pingSrc,
-    setPingSrc,
-    pingDst,
-    setPingDst,
-    doPing,
-    pingResult,
-    activePath,
+    pingSrc, setPingSrc, pingDst, setPingDst, doPing, pingResult, activePath,
+    pingDebug, setPingDebug, pingTTL, setPingTTL, pingLogs, setPingLogs,
     ripTables,
     nextHopMap,
     selectedRouter,
@@ -83,13 +79,14 @@ export default function ControlPanel({
     const [presetSize, setPresetSize] = useState(5);
     const TABS = [
         { k: "ping", label: "PING", icon: "🏓" },
+        { k: "routes", label: "ROUTES", icon: "🌐" },
         { k: "table", label: "TABLE", icon: "⊞" },
         { k: "sim", label: "SIM", icon: "⚙" },
     ];
 
     return (
         <div style={{
-            width: 380, background: T.bg, borderLeft: `1.5px solid ${T.border}`,
+            width: 420, background: T.bg, borderLeft: `1.5px solid ${T.border}`,
             display: "flex", flexDirection: "column", overflow: "hidden", flexShrink: 0,
             transition: "background .25s, border-color .25s",
         }}>
@@ -159,7 +156,14 @@ export default function ControlPanel({
                         pingSrc={pingSrc} setPingSrc={setPingSrc}
                         pingDst={pingDst} setPingDst={setPingDst}
                         doPing={doPing} pingResult={pingResult} activePath={activePath}
+                        pingDebug={pingDebug} setPingDebug={setPingDebug}
+                        pingTTL={pingTTL} setPingTTL={setPingTTL} pingLogs={pingLogs}
                         T={T}
+                    />
+                )}
+                {activeTab === "routes" && (
+                    <RoutesTab
+                        routers={routers} ripTables={ripTables} T={T}
                     />
                 )}
                 {activeTab === "table" && (

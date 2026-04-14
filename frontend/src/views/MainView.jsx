@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, Suspense } from "react";
 import { Canvas, useThree, useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { Html, Line, Sphere, OrbitControls, Grid, TransformControls, Stars } from '@react-three/drei';
 import { useTheme } from "../hooks/useTheme";
 import { useSimulation } from "../hooks/useSimulation";
@@ -12,88 +13,87 @@ import ThemeToggle from "../components/ui/ThemeToggle";
 import ControlPanel from "../components/panels/ControlPanel";
 import ToolsCard from "../components/panels/ToolsCard";
 
-// Real Earth node — textures loaded via R3F useLoader (no DOM, no canvas)
-function EarthPlanet({ color, isSel, isPath, isConn, isBroadcasting }) {
-    const planetRef = useRef();
-    const cloudsRef = useRef();
-
-    // Real Earth textures — served locally from /public (no CORS issues)
-    const [colorMap, cloudsMap, bumpMap, specMap] = useLoader(THREE.TextureLoader, [
-        '/earth-color.jpg',
-        '/earth-clouds.png',
-        '/earth-bump.jpg',
-        '/earth-spec.jpg',
-    ]);
-
-    // Slow axial rotation — different speeds for planet vs clouds
-    useFrame((_, delta) => {
-        if (planetRef.current)  planetRef.current.rotation.y  += delta * 0.12;
-        if (cloudsRef.current)  cloudsRef.current.rotation.y  += delta * 0.16;
+function ProceduralModel({ type, color, isBroadcasting }) {
+    const activityRef = useRef();
+    
+    useFrame(({ clock }) => {
+        if (activityRef.current) {
+            // Fast blink when broadcasting, slow idle pulse otherwise
+            activityRef.current.intensity = isBroadcasting 
+                ? (Math.sin(clock.elapsedTime * 25) + 1) * 3
+                : (Math.sin(clock.elapsedTime * 2) + 1) * 0.5;
+        }
     });
 
+
+    
+    // Default: Router
+    return (
+        <group position={[0, 0, 0]}>
+            {/* Router body */}
+            <mesh position={[0, 0, 0]}><boxGeometry args={[14, 4, 10]} /><meshStandardMaterial color="#1c1c1e" roughness={0.9} /></mesh>
+            {/* Antennas */}
+            <mesh position={[-4.5, 4, -3]}><cylinderGeometry args={[0.2, 0.4, 8]} /><meshStandardMaterial color="#111" /></mesh>
+            <mesh position={[4.5, 4, -3]}><cylinderGeometry args={[0.2, 0.4, 8]} /><meshStandardMaterial color="#111" /></mesh>
+            <mesh position={[0, 3, -4]}><cylinderGeometry args={[0.2, 0.4, 6]} /><meshStandardMaterial color="#111" /></mesh>
+            
+            {/* Front display panel */}
+            <mesh position={[0, 0, 5.1]}><planeGeometry args={[12, 1.5]} /><meshBasicMaterial color="#000" /></mesh>
+            {/* Status LEDs */}
+            <mesh position={[-4, 0, 5.2]}><circleGeometry args={[0.4, 16]} /><meshBasicMaterial color={color} /></mesh>
+            <mesh position={[-2, 0, 5.2]}><circleGeometry args={[0.3, 16]} /><meshBasicMaterial color={color} transparent opacity={0.5} /></mesh>
+            
+            <pointLight ref={activityRef} position={[-4, 0, 10]} distance={30} color={isBroadcasting ? "#06b6d4" : color} />
+        </group>
+    );
+}
+
+// 3D Model wrapper that handles loading custom GLB or showing procedural fallback
+function DeviceModel({ color, isSel, isPath, isConn, isBroadcasting }) {
+    const [gltfModel, setGltfModel] = useState(null);
     const hlColor   = isSel ? '#10b981' : isBroadcasting ? '#06b6d4' : isPath ? '#F59E0B' : isConn ? '#a855f7' : color;
     const ringAlpha = (isSel || isBroadcasting) ? 0.65 : 0.5;
+    
+    // Attempt to load external GLB (User can drop these files into /public/models/)
+    useEffect(() => {
+        const loader = new GLTFLoader();
+        loader.load(`/models/router.glb`, 
+            (gltf) => setGltfModel(gltf.scene.clone()), 
+            undefined, 
+            (error) => { /* Silently use procedural fallback if model not found */ }
+        );
+    }, []);
 
     return (
         <group>
-            {/* Blue atmospheric glow — backface disc slightly behind planet */}
-            <mesh position={[0, 0, -1]}>
-                <circleGeometry args={[30, 64]} />
-                <meshBasicMaterial color="#1a6fc4" transparent opacity={0.20} depthWrite={false} />
+            {/* Base platform disc behind the device */}
+            <mesh position={[0, 0, -5]}>
+                <circleGeometry args={[14, 32]} />
+                <meshBasicMaterial color="#0a0a0a" transparent opacity={0.8} />
             </mesh>
 
-            {/* Outer blue atmosphere shell */}
-            <mesh>
-                <sphereGeometry args={[21.8, 48, 48]} />
-                <meshBasicMaterial
-                    color={new THREE.Color(0.12, 0.40, 0.95)}
-                    transparent opacity={0.15}
-                    depthWrite={false}
-                    side={THREE.BackSide}
-                />
-            </mesh>
-
-            {/* Selection / path / connect / broadcast highlight ring */}
+            {/* Selection / path / connect / broadcast highlight ring around the base */}
             {(isSel || isPath || isConn || isBroadcasting) && (
-                <mesh position={[0, 0, 0]}>
-                    <ringGeometry args={[22.5, 25.5, 64]} />
+                <mesh position={[0, 0, -5.2]}>
+                    <ringGeometry args={[15, 17, 64]} />
                     <meshBasicMaterial color={hlColor} transparent opacity={ringAlpha} depthWrite={false} side={THREE.DoubleSide} />
                 </mesh>
             )}
+            
             {/* Second outer pulse ring when selected or broadcasting */}
             {(isSel || isBroadcasting) && (
-                <mesh position={[0, 0, 0]}>
-                    <ringGeometry args={[26.25, 28.1, 64]} />
+                <mesh position={[0, 0, -5.5]}>
+                    <ringGeometry args={[19, 21, 64]} />
                     <meshBasicMaterial color={hlColor} transparent opacity={0.25} depthWrite={false} side={THREE.DoubleSide} />
                 </mesh>
             )}
 
-            {/* ── EARTH SURFACE ── real NASA Blue Marble texture */}
-            <mesh ref={planetRef}>
-                <sphereGeometry args={[20, 64, 64]} />
-                <meshPhongMaterial
-                    map={colorMap}
-                    emissiveMap={colorMap}
-                    emissive={new THREE.Color(0xffffff)}
-                    emissiveIntensity={0.9}
-                    bumpMap={bumpMap}
-                    bumpScale={0.5}
-                    specularMap={specMap}
-                    specular={new THREE.Color(0x6688aa)}
-                    shininess={35}
-                />
-            </mesh>
-
-            {/* ── CLOUD LAYER ── semi-transparent, rotates faster */}
-            <mesh ref={cloudsRef}>
-                <sphereGeometry args={[20.75, 64, 64]} />
-                <meshPhongMaterial
-                    map={cloudsMap}
-                    alphaMap={cloudsMap}
-                    transparent opacity={0.82}
-                    depthWrite={false}
-                />
-            </mesh>
+            {/* Render GLTF if loaded, otherwise render procedural fallback */}
+            {gltfModel ? (
+                <primitive object={gltfModel} scale={8} position={[0, -5, 0]} />
+            ) : (
+                <ProceduralModel color={color} isBroadcasting={isBroadcasting} />
+            )}
         </group>
     );
 }
@@ -124,17 +124,18 @@ function AnimatedRouter({ r, isPath, isConn, isSel, isBroadcasting, cnt, T, hand
                 onClick={e => { e.stopPropagation(); handleRouterClick(e.nativeEvent || e, r.id, setActiveTab); }}
                 onPointerDown={e => { e.stopPropagation(); if(handleRouterMouseDown) handleRouterMouseDown({clientX: e.clientX, clientY: e.clientY, ctrlKey: e.ctrlKey}, r.id, svgRef); }}
             >
-                {/* Real Earth Planet — Suspense handles CDN texture load */}
-                <Suspense fallback={
-                    <mesh>
-                        <sphereGeometry args={[20, 32, 32]} />
-                        <meshStandardMaterial color="#0a3d6b" roughness={0.5} />
-                    </mesh>
-                }>
-                    <EarthPlanet color={color} isSel={isSel} isPath={isPath} isConn={isConn} isBroadcasting={isBroadcasting} />
+                {/* Realistic Device Model with fallback */}
+                <Suspense fallback={null}>
+                    <DeviceModel 
+                        color={color} 
+                        isSel={isSel} 
+                        isPath={isPath} 
+                        isConn={isConn} 
+                        isBroadcasting={isBroadcasting} 
+                    />
                 </Suspense>
 
-            <Html center zIndexRange={[100, 50]} position={[0, 0, 0]} style={{ pointerEvents: 'none' }}>
+            <Html center zIndexRange={[100, 50]} position={[0, 16, 0]} style={{ pointerEvents: 'none' }}>
                 <div style={{ 
                     textAlign: "center", 
                     background: "rgba(0,0,0,0.65)", 
@@ -378,22 +379,29 @@ function NetworkScene({
                 }
 
                 const isPing = pkt.type === "ping";
-                const pColor = isPing ? "#F59E0B" : "#4361EE";
+                const pColor = pkt.color || (isPing ? "#F59E0B" : "#4361EE");
 
                 return (
                     <group key={pkt.id}>
                         <mesh position={[pos.x, pos.y, (pos.z || 0) + 2]}>
-                            <sphereGeometry args={[isPing ? 8 : 4.5, 32, 32]} />
+                            <sphereGeometry args={[isPing ? 5 : 4.5, 32, 32]} />
                             <meshBasicMaterial color={pColor} />
+                            {pkt.label && (
+                                <Html center position={[0, -14, 0]} style={{ pointerEvents: 'none', zIndex: 100 }}>
+                                    <div style={{ color: "white", padding: "2px 6px", borderRadius: "4px", fontSize: "12px", background: "rgba(0,0,0,0.8)", border: `1px solid ${pColor}`, fontFamily: 'monospace', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                        {pkt.label}
+                                    </div>
+                                </Html>
+                            )}
                         </mesh>
                         {ghosts.map((g, i) => (
                             <mesh key={i} position={[g.p[0], g.p[1], (g.p[2]||0) + 2]}>
-                                <sphereGeometry args={[isPing ? 7 : 4, 16, 16]} />
+                                <sphereGeometry args={[isPing ? 4.5 : 4, 16, 16]} />
                                 <meshBasicMaterial color={pColor} transparent opacity={g.opacity * 0.5} blending={2} depthWrite={false} />
                             </mesh>
                         ))}
                         <mesh position={[pos.x, pos.y, (pos.z || 0) + 1]}>
-                            <sphereGeometry args={[isPing ? 14 : 9, 16, 16]} />
+                            <sphereGeometry args={[isPing ? 10 : 9, 16, 16]} />
                             <meshBasicMaterial color={pColor} transparent opacity={0.2} blending={2} depthWrite={false} />
                         </mesh>
                     </group>
@@ -443,8 +451,9 @@ export default function MainView() {
     } = useSimulation(routers, setRouters, links, setLinks, setPackets, simRunning, setSimRunning, tablesRef, applyUpdate, setRipTables, setNextHopMap, initializeTables);
 
     const {
-        pingSrc, setPingSrc, pingDst, setPingDst, pingResult, setPingResult, doPing
-    } = usePing(nextHopMap, animSpeed, setPackets, setActivePath);
+        pingSrc, setPingSrc, pingDst, setPingDst, pingResult, setPingResult, doPing, activePingNode,
+        pingDebug, setPingDebug, pingTTL, setPingTTL, pingLogs, setPingLogs
+    } = usePing(nextHopMap, animSpeed, setPackets, setActivePath, routers, links);
 
     const {
         mode, setMode, connectFrom, pendingCost, setPendingCost,
@@ -690,6 +699,8 @@ export default function MainView() {
                 activeTab={activeTab} setActiveTab={setActiveTab}
                 pingSrc={pingSrc} setPingSrc={setPingSrc} pingDst={pingDst} setPingDst={setPingDst}
                 doPing={doPing} pingResult={pingResult} activePath={activePath}
+                pingDebug={pingDebug} setPingDebug={setPingDebug}
+                pingTTL={pingTTL} setPingTTL={setPingTTL} pingLogs={pingLogs} setPingLogs={setPingLogs}
                 ripTables={ripTables} nextHopMap={nextHopMap}
                 selectedRouter={selectedRouter} setSelectedRouter={setSelectedRouter}
                 canStart={canStart} simRunning={simRunning} toggleSim={toggleSim}

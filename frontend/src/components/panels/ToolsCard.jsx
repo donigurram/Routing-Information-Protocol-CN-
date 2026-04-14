@@ -82,7 +82,7 @@ function ToolsCard({ mode, setMode, connectFrom, pendingCost, setPendingCost, T 
             </div>
 
             {/* Link cost */}
-            <div style={{ borderTop: `1px solid ${T.border}`, padding: "8px 8px 6px" }}>
+            <div style={{ padding: "8px 8px 6px" }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: T.textFaint, letterSpacing: "1.2px", marginBottom: 5 }}>LINK COST</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <button
