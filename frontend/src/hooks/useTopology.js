@@ -166,13 +166,12 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
         e.stopPropagation();
 
         if (mode === "connect") {
-            if (!connectFrom) { setConnectFrom(rid); }
-            else if (connectFrom !== rid) {
+            if (!connectFrom) { 
+                setConnectFrom(rid); 
+            } else if (connectFrom !== rid) {
                 const exists = links.find(l => (l.a === connectFrom && l.b === rid) || (l.a === rid && l.b === connectFrom));
                 if (!exists) {
                     pushHistory();
-                    const ra = routers.find(r => r.id === connectFrom);
-                    const rb = routers.find(r => r.id === rid);
                     setLinks(prev => [...prev, { id: `${connectFrom}-${rid}`, a: connectFrom, b: rid, cost: pendingCost, failed: false }]);
                 }
                 setConnectFrom(null);
