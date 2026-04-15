@@ -9,7 +9,7 @@ function RoutesTab({ routers, ripTables, T }) {
                 ? <div style={{ fontSize: 15, color: T.textFaint }}>No routers added yet.</div>
                 : routers.map(src => routers.filter(d => d.id !== src.id).map(dst => {
                     const cost = ripTables[src.id]?.[dst.id];
-                    const ok = cost !== undefined && cost < Infinity;
+                    const ok = cost !== undefined && cost < Infinity && cost < 16;
                     return (
                         <div key={`${src.id}-${dst.id}`} style={{
                             display: "flex", justifyContent: "space-between", alignItems: "center",
@@ -21,7 +21,7 @@ function RoutesTab({ routers, ripTables, T }) {
                                 background: ok ? T.accentBg : T.dangerBg,
                                 color: ok ? T.accent : T.danger
                             }}>
-                                {ok ? `cost ${cost}` : "∞"}
+                                {ok ? `cost ${cost}` : (cost === 16 ? "Counted to Infinity (16)" : "∞")}
                             </span>
                         </div>
                     );

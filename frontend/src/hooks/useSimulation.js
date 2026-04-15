@@ -19,14 +19,119 @@ export function useSimulation(routers, setRouters, links, setLinks, setPackets, 
     // Stable references for the animation loop
     const routersRef = useRef(routers);
     const linksRef = useRef(links);
+    const prevLinksRef = useRef(links);
+
     useEffect(() => { routersRef.current = routers; }, [routers]);
-    useEffect(() => { linksRef.current = links; }, [links]);
+    
+    useEffect(() => {
+        
+        const prevLinks = prevLinksRef.current || [];
+        let tablesChanged = false;
+        
+        if (prevLinks !== links) {
+            const newDist = { ...tablesRef.current.dist };
+            const newNext = { ...tablesRef.current.nextHop };
+            const wakeRouters = new Set();
+            
+            const cloneRow = (rId) => {
+                if (newDist[rId] === tablesRef.current.dist[rId]) {
+                    newDist[rId] = { ...newDist[rId] };
+                    newNext[rId] = { ...newNext[rId] };
+                }
+            };
+            
+            // Check for failed or deleted links
+            prevLinks.forEach(prevLink => {
+                const link = links.find(l => l.id === prevLink.id);
+                if (!link || (!prevLink.failed && link.failed)) {
+                    [prevLink.a, prevLink.b].forEach(rId => {
+                        if (!newDist[rId]) return;
+                        const neighbor = rId === prevLink.a ? prevLink.b : prevLink.a;
+                        Object.keys(newNext[rId] || {}).forEach(destId => {
+                            if (newNext[rId][destId] === neighbor && newDist[rId][destId] !== 16) {
+                                cloneRow(rId);
+                                newDist[rId][destId] = 16;
+                                newNext[rId][destId] = null;
+                                tablesChanged = true;
+                                wakeRouters.add(rId);
+                            }
+                        });
+                    });
+                }
+            });
+
+            // Check for new, restored, or cost-changed links
+            links.forEach(link => {
+                const prevLink = prevLinks.find(l => l.id === link.id);
+                if (!prevLink || (prevLink.failed && !link.failed)) {
+                    [link.a, link.b].forEach(rId => {
+                        if (!newDist[rId]) return;
+                        const neighbor = rId === link.a ? link.b : link.a;
+                        if (newDist[rId][neighbor] === undefined || newDist[rId][neighbor] > link.cost) {
+                            cloneRow(rId);
+                            newDist[rId][neighbor] = link.cost;
+                            newNext[rId][neighbor] = neighbor;
+                            tablesChanged = true;
+                            wakeRouters.add(rId);
+                        }
+                    });
+                } else if (prevLink && !link.failed && prevLink.cost !== link.cost) {
+                    [link.a, link.b].forEach(rId => {
+                        if (!newDist[rId]) return;
+                        const neighbor = rId === link.a ? link.b : link.a;
+                        if (newNext[rId][neighbor] === neighbor && newDist[rId][neighbor] !== link.cost) {
+                            cloneRow(rId);
+                            newDist[rId][neighbor] = link.cost;
+                            tablesChanged = true;
+                            wakeRouters.add(rId);
+                        }
+                    });
+                }
+            });
+
+            if (tablesChanged) {
+                tablesRef.current = { dist: newDist, nextHop: newNext };
+                pendingUIUpdateRef.current = true;
+                
+                // Wake up ALL routers to simulate random periodic updates.
+                // We deliberately enqueue unaffected nodes FIRST and affected nodes (wakeRouters) LAST.
+                // This ensures the unaffected nodes broadcast their optimistic "stale" routes BEFORE 
+                // the affected nodes assert the link is dead, which perfectly forces Count-to-Infinity.
+                routersRef.current.forEach(r => {
+                    if (!wakeRouters.has(r.id) && !broadcastQueueRef.current.includes(r.id)) {
+                        broadcastQueueRef.current.push(r.id);
+                    }
+                });
+                wakeRouters.forEach(rId => {
+                    if (!broadcastQueueRef.current.includes(rId)) {
+                        broadcastQueueRef.current.push(rId);
+                    }
+                });
+                
+                if (broadcastQueueRef.current.length > 0) setConverged(false);
+            }
+        }
+        
+        prevLinksRef.current = links;
+        linksRef.current = links; 
+    }, [links, simRunning, tablesRef]);
 
     const [ripRound, setRipRound] = useState(0);
     const [converged, setConverged] = useState(false);
     const [animSpeed, setAnimSpeed] = useState(1);
     const [splitHorizon, setSplitHorizon] = useState(true);
     const [routePoisoning, setRoutePoisoning] = useState(true);
+
+    // Auto-start simulation and wake all routers whenever rules change
+    useEffect(() => {
+        if (routersRef.current && routersRef.current.length > 0) {
+            routersRef.current.forEach(r => {
+                if (!broadcastQueueRef.current.includes(r.id)) broadcastQueueRef.current.push(r.id);
+            });
+            setConverged(false);
+            setSimRunning(true);
+        }
+    }, [splitHorizon, routePoisoning]);
 
     const toggleSim = () => {
         setSimRunning(s => {
@@ -35,7 +140,7 @@ export function useSimulation(routers, setRouters, links, setLinks, setPackets, 
                 hasChangesRef.current = false;
                 broadcasterUIRef.current = null;
                 setActiveBroadcaster(null);
-                initializeTables(routers, links);
+                // Preserve stale routing tables when resuming to allow Count-to-Infinity to occur
                 if (routers.length > 0) {
                     broadcastQueueRef.current = [...routers.map(r => r.id)];
                 }

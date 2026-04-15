@@ -418,13 +418,6 @@ function NetworkScene({
                 return <AnimatedRouter key={r.id} r={r} isPath={isPath} isConn={isConn} isSel={isSel} isBroadcasting={isBroadcasting} cnt={cnt} T={T} handleRouterClick={handleRouterClick} handleRouterMouseDown={handleRouterMouseDown} svgRef={svgRef} pan={pan} setActiveTab={setActiveTab} mode={mode} updateRouter3DPos={updateRouter3DPos} />;
             })}
             
-            {routers.length === 0 && (
-                <Html center position={[0,-10,0]} style={{ pointerEvents: 'none', width: 400, textAlign: 'center' }}>
-                    <div style={{ color: T.textFaint, fontSize: 17, fontFamily: "monospace" }}>
-                        Click canvas to add routers → Connect → Simulate
-                    </div>
-                </Html>
-            )}
         </group>
     );
 }
@@ -656,6 +649,15 @@ export default function MainView() {
                         >✕</button>
                     </div>
                 )}
+
+                {/* Always visible helper text (Bottom Left Fixed) */}
+                <div style={{
+                    position: "absolute", bottom: 24, left: 24, zIndex: 15,
+                    pointerEvents: "none", opacity: 0.75,
+                    color: T.textFaint, fontSize: 14, fontFamily: "monospace", fontWeight: 600, letterSpacing: "0.5px"
+                }}>
+                    Click canvas to add routers → Connect → Simulate
+                </div>
 
                 {/* Interactive Wrapper matching SVG bounds */}
                 <div 
