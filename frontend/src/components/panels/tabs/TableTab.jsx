@@ -52,7 +52,7 @@ function TableTab({ routers, ripTables, nextHopMap, selectedRouter, setSelectedR
                                                     background: ok ? T.accentBg : T.dangerBg,
                                                     color: ok ? T.accent : T.danger
                                                 }}>
-                                                    {ok ? cost : "16 (∞)"}
+                                                    {ok ? cost : (cost === 16 ? "Counted to Infinity (16)" : "∞")}
                                                 </span>
                                             </td>
                                         </tr>

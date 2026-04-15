@@ -61,7 +61,9 @@ export function useRouting(routers, links, simRunning) {
         const routersChanged = prevRoutersRef.current !== routers;
         const linksChanged = prevLinksRef.current !== links;
         
-        if (!simRunning && (routersChanged || linksChanged)) {
+        // Only completely wipe routes if routers changed (i.e. new node added). 
+        // Link changes are tracked live via useSimulation to preserve routing loops for testing.
+        if (!simRunning && routersChanged) {
             initializeTables(routers, links);
         }
         
