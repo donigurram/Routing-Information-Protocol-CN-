@@ -6,8 +6,7 @@ export function usePing(nextHopMap, animSpeed, setPackets, setActivePath, router
     const [pingDst, setPingDst] = useState("");
     const [pingResult, setPingResult] = useState(null);
     const [activePingNode, setActivePingNode] = useState(null);
-    const [pingDebug, setPingDebug] = useState(false);
-    const [pingTTL, setPingTTL] = useState(64);
+    const [pingTTL, setPingTTL] = useState(15);
     const [pingLogs, setPingLogs] = useState([]);
 
     const logEvent = (msg) => setPingLogs(prev => [...prev, msg]);
@@ -99,7 +98,7 @@ export function usePing(nextHopMap, animSpeed, setPackets, setActivePath, router
                 return;
             }
             
-            let reverseRunningTTL = 64; // Default return TTL
+            let reverseRunningTTL = 15; // Default return TTL
             logEvent(`Tracing reverse ICMP Echo Reply...`);
             let reverseDelay = 0;
             
@@ -142,7 +141,6 @@ export function usePing(nextHopMap, animSpeed, setPackets, setActivePath, router
         pingDst, setPingDst,
         pingResult, setPingResult,
         doPing, activePingNode,
-        pingDebug, setPingDebug,
         pingTTL, setPingTTL,
         pingLogs, setPingLogs
     };

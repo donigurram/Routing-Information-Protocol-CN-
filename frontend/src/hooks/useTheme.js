@@ -1,7 +1,5 @@
-import { useState } from "react";
-
-export function makeTheme(dark) {
-    return dark ? {
+export function useTheme() {
+    const T = {
         bg: "#0F1117",
         surface: "#1A1D27",
         surfaceAlt: "#22263A",
@@ -24,34 +22,6 @@ export function makeTheme(dark) {
         bgImage: "radial-gradient(circle, #2D3150 1.5px, transparent 1px)",
         bgSize: "35px 35px",
         bgPos: "0 0",
-    } : {
-        bg: "#F4F6FF",
-        surface: "#FFFFFF",
-        surfaceAlt: "#F8FAFF",
-        border: "#DDE3FF",
-        borderHov: "#B8C4FF",
-        text: "#1B1F3A",
-        textMuted: "#6B7280",
-        textFaint: "#A0AABF",
-        accent: "#4361EE",
-        accentBg: "#EEF2FF",
-        accentBdr: "#C0CCFF",
-        success: "#06D6A0",
-        successBg: "#E8FBF6",
-        danger: "#EF233C",
-        dangerBg: "#FFF0F2",
-        warn: "#F77F00",
-        warnBg: "#FFF4E6",
-        gridLine: "#DDE3FF",
-        dark: false,
-        bgImage: "url('/light-bg.png')",
-        bgSize: "cover",
-        bgPos: "center",
     };
-}
-
-export function useTheme() {
-    const [dark, setDark] = useState(true);
-    const T = makeTheme(dark);
-    return { dark, setDark, T };
+    return { T };
 }
