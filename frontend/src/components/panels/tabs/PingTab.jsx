@@ -5,7 +5,7 @@ function PingTab({
     routers, ripTables, nextHopMap, 
     pingSrc, setPingSrc, pingDst, setPingDst, 
     doPing, pingResult, activePath, 
-    pingDebug, setPingDebug, pingTTL, setPingTTL, pingLogs,
+    pingTTL, setPingTTL, pingLogs,
     T 
 }) {
     const logsContainerRef = useRef(null);
@@ -41,17 +41,11 @@ function PingTab({
             <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                 <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
                     <div style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, marginBottom: 4 }}>Time-To-Live</div>
-                    <input type="number" min="1" max="255" value={pingTTL} onChange={e => setPingTTL(parseInt(e.target.value) || 64)} 
+                    <input type="number" min="1" max="15" value={pingTTL} onChange={e => setPingTTL(parseInt(e.target.value) || 15)} 
                     style={{
                         width: "100%", padding: "5px 8px", border: `1.5px solid ${T.border}`, borderRadius: 7,
                         fontSize: 15, fontFamily: "monospace", color: T.text, background: T.surface, boxSizing: "border-box"
                     }} />
-                </div>
-                <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                    <div style={{ fontSize: 13, color: T.textMuted, fontWeight: 600, marginBottom: 4 }}>Debug (Any node)</div>
-                    <div style={{ display: "flex", alignItems: "center", height: "100%", paddingLeft: 4 }}>
-                        <Toggle value={pingDebug} onChange={setPingDebug} T={T} />
-                    </div>
                 </div>
             </div>
 

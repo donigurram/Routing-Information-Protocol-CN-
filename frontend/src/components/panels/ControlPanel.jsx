@@ -58,7 +58,7 @@ export default function ControlPanel({
     activeTab,
     setActiveTab,
     pingSrc, setPingSrc, pingDst, setPingDst, doPing, pingResult, activePath,
-    pingDebug, setPingDebug, pingTTL, setPingTTL, pingLogs, setPingLogs,
+    pingTTL, setPingTTL, pingLogs, setPingLogs,
     ripTables,
     nextHopMap,
     selectedRouter,
@@ -156,7 +156,6 @@ export default function ControlPanel({
                         pingSrc={pingSrc} setPingSrc={setPingSrc}
                         pingDst={pingDst} setPingDst={setPingDst}
                         doPing={doPing} pingResult={pingResult} activePath={activePath}
-                        pingDebug={pingDebug} setPingDebug={setPingDebug}
                         pingTTL={pingTTL} setPingTTL={setPingTTL} pingLogs={pingLogs}
                         T={T}
                     />

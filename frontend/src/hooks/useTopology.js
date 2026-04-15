@@ -69,6 +69,7 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
 
     // Undo state
     const [history, setHistory] = useState([]);
+    const [future, setFuture] = useState([]);
 
     const pushHistory = (rs = routers, ls = links) => {
         setHistory(prev => {
@@ -76,14 +77,32 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
             if (newHist.length > 50) newHist.shift();
             return newHist;
         });
+        setFuture([]); // Clear future on new action
     };
 
     const undo = () => {
         if (history.length === 0) return;
         const last = history[history.length - 1];
+        setFuture(prev => [{ routers: [...routers], links: [...links] }, ...prev]);
         setHistory(prev => prev.slice(0, -1));
         setRouters(last.routers);
         setLinks(last.links);
+        setPackets([]); setActivePath([]); setPingResult(null);
+        resetSim();
+        setMode("move");
+    };
+
+    const redo = () => {
+        if (future.length === 0) return;
+        const next = future[0];
+        setHistory(prev => {
+            const newHist = [...prev, { routers: [...routers], links: [...links] }];
+            if (newHist.length > 50) newHist.shift();
+            return newHist;
+        });
+        setFuture(prev => prev.slice(1));
+        setRouters(next.routers);
+        setLinks(next.links);
         setPackets([]); setActivePath([]); setPingResult(null);
         resetSim();
         setMode("move");
@@ -98,6 +117,16 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
 
     const updateRouter3DPos = (id, x, y, z) => {
         setRouters(prev => prev.map(r => r.id === id ? { ...r, x, y, z } : r));
+    };
+
+    const updateMultiRouter3DPos = (id, x, y, z, dx, dy, dz) => {
+        setRouters(prev => prev.map(r => {
+            if (r.id === id) return { ...r, x, y, z };
+            if (multiSelected.includes(r.id)) {
+                return { ...r, x: r.x + dx, y: r.y + dy, z: (r.z || 0) + dz };
+            }
+            return r;
+        }));
     };
 
     const updateLinkCost = (lid, newCost) => {
@@ -417,6 +446,6 @@ export function useTopology(routers, setRouters, links, setLinks, setPackets, se
         loadPreset, spawnPreset, clearAll,
         dragging, pan, isPanning,
         editingLink, setEditingLink, updateLinkCost,
-        undo, canUndo: history.length > 0, updateRouter3DPos, addRouter3D
+        undo, canUndo: history.length > 0, redo, canRedo: future.length > 0, updateRouter3DPos, updateMultiRouter3DPos, addRouter3D
     };
 }

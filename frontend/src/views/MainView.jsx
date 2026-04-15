@@ -8,8 +8,6 @@ import { useSimulation } from "../hooks/useSimulation";
 import { useRouting } from "../hooks/useRouting";
 import { usePing } from "../hooks/usePing";
 import { useTopology } from "../hooks/useTopology";
-import ThemeToggle from "../components/ui/ThemeToggle";
-
 import ControlPanel from "../components/panels/ControlPanel";
 import ToolsCard from "../components/panels/ToolsCard";
 
@@ -98,12 +96,17 @@ function DeviceModel({ color, isSel, isPath, isConn, isBroadcasting }) {
     );
 }
 
-function AnimatedRouter({ r, isPath, isConn, isSel, isBroadcasting, cnt, T, handleRouterClick, handleRouterMouseDown, svgRef, pan, setActiveTab, mode, updateRouter3DPos }) {
+function AnimatedRouter({ r, isPath, isConn, isSel, isBroadcasting, cnt, T, handleRouterClick, handleRouterMouseDown, svgRef, pan, setActiveTab, mode, updateRouter3DPos, multiSelected, updateMultiRouter3DPos }) {
     const palette = ["#4361EE", "#06D6A0", "#EF233C", "#F77F00", "#7B2FBE", "#0077B6"];
     const cIdx = parseInt(r.id.replace('R','')) || 0;
     const color = palette[cIdx % palette.length];
     
     const groupRef = useRef();
+    const prevPos = useRef({ x: r.x, y: r.y, z: r.z || 0 });
+
+    useEffect(() => {
+        prevPos.current = { x: r.x, y: r.y, z: r.z || 0 };
+    }, [r.x, r.y, r.z]);
 
     return (
         <>
@@ -115,7 +118,18 @@ function AnimatedRouter({ r, isPath, isConn, isSel, isBroadcasting, cnt, T, hand
                     onObjectChange={() => {
                         if (groupRef.current) {
                             const p = groupRef.current.position;
-                            updateRouter3DPos(r.id, p.x, p.y, p.z);
+                            const dx = p.x - prevPos.current.x;
+                            const dy = p.y - prevPos.current.y;
+                            const dz = p.z - prevPos.current.z;
+                            
+                            if (dx !== 0 || dy !== 0 || dz !== 0) {
+                                prevPos.current = { x: p.x, y: p.y, z: p.z };
+                                if (multiSelected && multiSelected.length > 1 && multiSelected.includes(r.id)) {
+                                    updateMultiRouter3DPos(r.id, p.x, p.y, p.z, dx, dy, dz);
+                                } else {
+                                    updateRouter3DPos(r.id, p.x, p.y, p.z);
+                                }
+                            }
                         }
                     }}
                 />
@@ -165,7 +179,7 @@ function NetworkScene({
     multiSelected, isBoxSelectMode, selectionBox, activeBroadcaster,
     handleRouterClick, handleRouterMouseDown, svgRef, setActiveTab,
     isPathLink, getPacketPos, handleLinkClick, editingLink, setEditingLink, updateLinkCost,
-    dragging, handleCanvasClick, handleCanvasMouseDown, handleMouseMove, handleMouseUp, updateRouter3DPos, addRouter3D
+    dragging, handleCanvasClick, handleCanvasMouseDown, handleMouseMove, handleMouseUp, updateRouter3DPos, updateMultiRouter3DPos, addRouter3D
 }) {
     const { camera } = useThree();
     const controlsRef = useRef();
@@ -415,7 +429,7 @@ function NetworkScene({
                 const isSel = selectedRouter === r.id || multiSelected?.includes(r.id);
                 const isBroadcasting = activeBroadcaster === r.id;
                 const cnt = ripTables[r.id] ? Object.values(ripTables[r.id]).filter(v => v < Infinity && v > 0).length : 0;
-                return <AnimatedRouter key={r.id} r={r} isPath={isPath} isConn={isConn} isSel={isSel} isBroadcasting={isBroadcasting} cnt={cnt} T={T} handleRouterClick={handleRouterClick} handleRouterMouseDown={handleRouterMouseDown} svgRef={svgRef} pan={pan} setActiveTab={setActiveTab} mode={mode} updateRouter3DPos={updateRouter3DPos} />;
+                return <AnimatedRouter key={r.id} r={r} isPath={isPath} isConn={isConn} isSel={isSel} isBroadcasting={isBroadcasting} cnt={cnt} T={T} handleRouterClick={handleRouterClick} handleRouterMouseDown={handleRouterMouseDown} svgRef={svgRef} pan={pan} setActiveTab={setActiveTab} mode={mode} updateRouter3DPos={updateRouter3DPos} multiSelected={multiSelected} updateMultiRouter3DPos={updateMultiRouter3DPos} />;
             })}
             
             {routers.length === 0 && (
@@ -431,7 +445,7 @@ function NetworkScene({
 
 export default function MainView() {
     const svgRef = useRef(null);
-    const { dark, setDark, T } = useTheme();
+    const { T } = useTheme();
 
     const [routers, setRouters] = useState([]);
     const [links, setLinks] = useState([]);
@@ -452,7 +466,7 @@ export default function MainView() {
 
     const {
         pingSrc, setPingSrc, pingDst, setPingDst, pingResult, setPingResult, doPing, activePingNode,
-        pingDebug, setPingDebug, pingTTL, setPingTTL, pingLogs, setPingLogs
+        pingTTL, setPingTTL, pingLogs, setPingLogs
     } = usePing(nextHopMap, animSpeed, setPackets, setActivePath, routers, links);
 
     const {
@@ -465,14 +479,22 @@ export default function MainView() {
         handleCanvasMouseDown, handleRouterMouseDown, handleMouseMove, handleMouseUp,
         loadPreset, spawnPreset, clearAll, pan, isPanning, dragging,
         editingLink, setEditingLink, updateLinkCost,
-        undo, canUndo, updateRouter3DPos, addRouter3D
+        undo, canUndo, redo, canRedo, updateRouter3DPos, updateMultiRouter3DPos, addRouter3D
     } = useTopology(routers, setRouters, links, setLinks, setPackets, setActivePath, setPingResult, resetSim);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
                 e.preventDefault();
-                if (canUndo) undo();
+                if (e.shiftKey) {
+                    if (canRedo) redo();
+                } else {
+                    if (canUndo) undo();
+                }
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+                e.preventDefault();
+                if (canRedo) redo();
             }
             // Delete key removes multi-selected nodes
             if ((e.key === 'Delete' || e.key === 'Backspace') && multiSelected.length > 0) {
@@ -484,7 +506,7 @@ export default function MainView() {
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [canUndo, undo, multiSelected, deleteMultiSelected]);
+    }, [canUndo, undo, canRedo, redo, multiSelected, deleteMultiSelected]);
 
     const isPathLink = (la, lb) => {
         for (let i = 0; i < activePath.length - 1; i++)
@@ -574,6 +596,20 @@ export default function MainView() {
                         ↶ UNDO
                     </button>
                     <button
+                        onClick={redo}
+                        disabled={!canRedo}
+                        title="Redo (Ctrl+Y or Ctrl+Shift+Z)"
+                        style={{
+                            padding: "4px 8px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: canRedo ? "pointer" : "not-allowed",
+                            background: canRedo ? T.surfaceAlt : "transparent",
+                            color: canRedo ? T.text : T.textFaint,
+                            border: `1px solid ${canRedo ? T.border : "transparent"}`,
+                            transition: "all .2s", display: "flex", alignItems: "center", gap: 4
+                        }}
+                    >
+                        ↷ REDO
+                    </button>
+                    <button
                         onClick={() => setIs3D(!is3D)}
                         style={{
                             padding: "4px 8px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer",
@@ -600,7 +636,6 @@ export default function MainView() {
                     >
                         ✕ CLEAR ALL
                     </button>
-                    <ThemeToggle dark={dark} onToggle={() => setDark(d => !d)} T={T} />
                 </div>
 
                 {/* Tools card */}
@@ -686,7 +721,7 @@ export default function MainView() {
                                 isPathLink={isPathLink} getPacketPos={getPacketPos} handleLinkClick={handleLinkClick} 
                                 editingLink={editingLink} setEditingLink={setEditingLink} updateLinkCost={updateLinkCost}
                                 dragging={dragging} handleCanvasClick={handleCanvasClick} handleCanvasMouseDown={handleCanvasMouseDown} handleMouseMove={handleMouseMove} handleMouseUp={handleMouseUp}
-                                updateRouter3DPos={updateRouter3DPos} addRouter3D={addRouter3D}
+                                updateRouter3DPos={updateRouter3DPos} updateMultiRouter3DPos={updateMultiRouter3DPos} addRouter3D={addRouter3D}
                             />
                         </Canvas>
                     </div>
@@ -699,7 +734,6 @@ export default function MainView() {
                 activeTab={activeTab} setActiveTab={setActiveTab}
                 pingSrc={pingSrc} setPingSrc={setPingSrc} pingDst={pingDst} setPingDst={setPingDst}
                 doPing={doPing} pingResult={pingResult} activePath={activePath}
-                pingDebug={pingDebug} setPingDebug={setPingDebug}
                 pingTTL={pingTTL} setPingTTL={setPingTTL} pingLogs={pingLogs} setPingLogs={setPingLogs}
                 ripTables={ripTables} nextHopMap={nextHopMap}
                 selectedRouter={selectedRouter} setSelectedRouter={setSelectedRouter}
