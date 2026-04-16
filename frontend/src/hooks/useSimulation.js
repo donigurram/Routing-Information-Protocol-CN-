@@ -140,9 +140,9 @@ export function useSimulation(routers, setRouters, links, setLinks, setPackets, 
                 hasChangesRef.current = false;
                 broadcasterUIRef.current = null;
                 setActiveBroadcaster(null);
-                // Preserve stale routing tables when resuming to allow Count-to-Infinity to occur
-                if (routers.length > 0) {
-                    broadcastQueueRef.current = [...routers.map(r => r.id)];
+                initializeTables(routersRef.current, linksRef.current);
+                if (routersRef.current && routersRef.current.length > 0) {
+                    broadcastQueueRef.current = [...routersRef.current.map(r => r.id)];
                 }
             }
             return !s;
