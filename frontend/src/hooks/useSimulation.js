@@ -178,7 +178,7 @@ export function useSimulation(routers, setRouters, links, setLinks, setPackets, 
                                     type: "update", 
                                     dv,
                                     originalSender: r.id,
-                                    accumulatedCost: l.cost,
+                                    accumulatedCost: 1,
                                     color: ROUTER_COLORS[rs.findIndex(x => x.id === r.id) % ROUTER_COLORS.length] 
                                 });
                             });
