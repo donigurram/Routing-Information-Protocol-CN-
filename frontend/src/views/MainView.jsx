@@ -31,17 +31,17 @@ function ProceduralModel({ type, color, isBroadcasting }) {
     return (
         <group position={[0, 0, 0]}>
             {/* Router body */}
-            <mesh position={[0, 0, 0]}><boxGeometry args={[14, 4, 10]} /><meshStandardMaterial color="#1c1c1e" roughness={0.9} /></mesh>
+            <mesh position={[0, 0, 0]}><boxGeometry args={[14, 4, 10]} /><meshStandardMaterial color={color} roughness={0.7} metalness={0.2} /></mesh>
             {/* Antennas */}
-            <mesh position={[-4.5, 4, -3]}><cylinderGeometry args={[0.2, 0.4, 8]} /><meshStandardMaterial color="#111" /></mesh>
-            <mesh position={[4.5, 4, -3]}><cylinderGeometry args={[0.2, 0.4, 8]} /><meshStandardMaterial color="#111" /></mesh>
-            <mesh position={[0, 3, -4]}><cylinderGeometry args={[0.2, 0.4, 6]} /><meshStandardMaterial color="#111" /></mesh>
+            <mesh position={[-4.5, 4, -3]}><cylinderGeometry args={[0.2, 0.4, 8]} /><meshStandardMaterial color="#333" /></mesh>
+            <mesh position={[4.5, 4, -3]}><cylinderGeometry args={[0.2, 0.4, 8]} /><meshStandardMaterial color="#333" /></mesh>
+            <mesh position={[0, 3, -4]}><cylinderGeometry args={[0.2, 0.4, 6]} /><meshStandardMaterial color="#333" /></mesh>
             
             {/* Front display panel */}
             <mesh position={[0, 0, 5.1]}><planeGeometry args={[12, 1.5]} /><meshBasicMaterial color="#000" /></mesh>
             {/* Status LEDs */}
-            <mesh position={[-4, 0, 5.2]}><circleGeometry args={[0.4, 16]} /><meshBasicMaterial color={color} /></mesh>
-            <mesh position={[-2, 0, 5.2]}><circleGeometry args={[0.3, 16]} /><meshBasicMaterial color={color} transparent opacity={0.5} /></mesh>
+            <mesh position={[-4, 0, 5.2]}><circleGeometry args={[0.4, 16]} /><meshBasicMaterial color="#fff" /></mesh>
+            <mesh position={[-2, 0, 5.2]}><circleGeometry args={[0.3, 16]} /><meshBasicMaterial color="#fff" transparent opacity={0.5} /></mesh>
             
             <pointLight ref={activityRef} position={[-4, 0, 10]} distance={30} color={isBroadcasting ? "#06b6d4" : color} />
         </group>
@@ -66,16 +66,10 @@ function DeviceModel({ color, isSel, isPath, isConn, isBroadcasting }) {
 
     return (
         <group>
-            {/* Base platform disc behind the device */}
-            <mesh position={[0, 0, -5]}>
-                <circleGeometry args={[14, 32]} />
-                <meshBasicMaterial color="#0a0a0a" transparent opacity={0.8} />
-            </mesh>
-
             {/* Selection / path / connect / broadcast highlight ring around the base */}
             {(isSel || isPath || isConn || isBroadcasting) && (
                 <mesh position={[0, 0, -5.2]}>
-                    <ringGeometry args={[15, 17, 64]} />
+                    <ringGeometry args={[8.5, 9.5, 64]} />
                     <meshBasicMaterial color={hlColor} transparent opacity={ringAlpha} depthWrite={false} side={THREE.DoubleSide} />
                 </mesh>
             )}
@@ -83,7 +77,7 @@ function DeviceModel({ color, isSel, isPath, isConn, isBroadcasting }) {
             {/* Second outer pulse ring when selected or broadcasting */}
             {(isSel || isBroadcasting) && (
                 <mesh position={[0, 0, -5.5]}>
-                    <ringGeometry args={[19, 21, 64]} />
+                    <ringGeometry args={[10.5, 11.5, 64]} />
                     <meshBasicMaterial color={hlColor} transparent opacity={0.25} depthWrite={false} side={THREE.DoubleSide} />
                 </mesh>
             )}
@@ -126,16 +120,18 @@ function AnimatedRouter({ r, isPath, isConn, isSel, isBroadcasting, cnt, T, hand
             >
                 {/* Realistic Device Model with fallback */}
                 <Suspense fallback={null}>
-                    <DeviceModel 
-                        color={color} 
-                        isSel={isSel} 
-                        isPath={isPath} 
-                        isConn={isConn} 
-                        isBroadcasting={isBroadcasting} 
-                    />
+                    <group scale={4.0}>
+                        <DeviceModel 
+                            color={color} 
+                            isSel={isSel} 
+                            isPath={isPath} 
+                            isConn={isConn} 
+                            isBroadcasting={isBroadcasting} 
+                        />
+                    </group>
                 </Suspense>
 
-            <Html center zIndexRange={[100, 50]} position={[0, 16, 0]} style={{ pointerEvents: 'none' }}>
+            <Html center zIndexRange={[100, 50]} position={[0, 38, 0]} style={{ pointerEvents: 'none' }}>
                 <div style={{ 
                     textAlign: "center", 
                     background: "rgba(0,0,0,0.65)", 
@@ -162,7 +158,7 @@ function AnimatedRouter({ r, isPath, isConn, isSel, isBroadcasting, cnt, T, hand
 
 function NetworkScene({ 
     is3D, pan, routers, links, packets, mode, T, ripTables, activePath, connectFrom, selectedRouter,
-    multiSelected, isBoxSelectMode, selectionBox, activeBroadcaster,
+    multiSelected, isBoxSelectMode, selectionBox, activeBroadcaster, activeTab,
     handleRouterClick, handleRouterMouseDown, svgRef, setActiveTab,
     isPathLink, getPacketPos, handleLinkClick, editingLink, setEditingLink, updateLinkCost,
     dragging, handleCanvasClick, handleCanvasMouseDown, handleMouseMove, handleMouseUp, updateRouter3DPos, addRouter3D
@@ -306,59 +302,18 @@ function NetworkScene({
                             <Line
                                 points={[[ra.x, ra.y, (ra.z || 0) - 1], [rb.x, rb.y, (rb.z || 0) - 1]]}
                                 color={l.failed ? stroke : isPath ? "#F59E0B" : "#3b82f6"}
-                                lineWidth={isPath ? 14 : 10}
-                                transparent opacity={0.15}
+                                lineWidth={isPath ? 24 : 16}
+                                transparent opacity={0.25}
                             />
                             <Line
                                 points={[[ra.x, ra.y, (ra.z || 0) - 0.5], [rb.x, rb.y, (rb.z || 0) - 0.5]]}
-                                color={l.failed ? stroke : isPath ? "#FBBF24" : "#60a5fa"}
-                                lineWidth={isPath ? 3.5 : 1.5}
+                                color={l.failed ? stroke : isPath ? "#FBBF24" : "#93c5fd"}
+                                lineWidth={isPath ? 6 : 4}
                                 dashed={l.failed}
                                 dashSize={8} gapSize={5}
-                                transparent opacity={l.failed ? 0.6 : 0.8}
+                                transparent opacity={l.failed ? 0.6 : 1.0}
                             />
                         </>
-                        <Html position={[mx, my, ((ra.z||0)+(rb.z||0))/2]} center zIndexRange={[10, 0]}>
-                            <div style={{
-                                background: l.failed ? "rgba(239, 68, 68, 0.9)" : isPath ? "rgba(245, 158, 11, 0.9)" : "rgba(234, 179, 8, 0.9)",
-                                color: l.failed ? "#fff" : "#000",
-                                borderRadius: "4px",
-                                fontSize: "12px",
-                                padding: "2px 8px",
-                                fontWeight: "bold",
-                                cursor: "pointer",
-                                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                                backdropFilter: "blur(4px)",
-                                userSelect: "none",
-                                pointerEvents: "auto",
-                                border: l.failed ? "1px solid #ef4444" : "1px solid #eab308"
-                            }}
-                            onMouseDown={e => e.stopPropagation()}
-                            onClick={e => { e.stopPropagation(); handleLinkClick(e, l.id); }}
-                            >
-                                {editingLink === l.id && !l.failed ? (
-                                    <input
-                                        autoFocus
-                                        defaultValue={l.cost}
-                                        onFocus={e => e.target.select()}
-                                        onKeyDown={e => {
-                                            if (e.key === 'Enter') updateLinkCost(l.id, e.target.value);
-                                            if (e.key === 'Escape') setEditingLink(null);
-                                        }}
-                                        onBlur={e => updateLinkCost(l.id, e.target.value)}
-                                        style={{
-                                            width: 30, height: 20, border: 'none', background: 'transparent',
-                                            color: "#000",
-                                            textAlign: 'center', fontSize: 16, fontWeight: "bold",
-                                            fontFamily: 'monospace', outline: 'none', padding: 0, margin: 0
-                                        }}
-                                        min={1} max={15} type="number"
-                                    />
-                                ) : (
-                                    l.failed ? "✕" : l.cost
-                                )}
-                            </div>
-                        </Html>
                     </group>
                 );
             })}
@@ -412,7 +367,12 @@ function NetworkScene({
             {routers.map(r => {
                 const isPath = activePath.includes(r.id);
                 const isConn = connectFrom === r.id;
-                const isSel = selectedRouter === r.id || multiSelected?.includes(r.id);
+                
+                // Verify we are actually in a context where selection should be visualized
+                const isSelectedForInspect = selectedRouter === r.id && mode === "select" && activeTab === "table";
+                const isSelectedForEdit = selectedRouter === r.id && ["move", "delete"].includes(mode);
+                const isSel = isSelectedForInspect || isSelectedForEdit || multiSelected?.includes(r.id);
+                
                 const isBroadcasting = activeBroadcaster === r.id;
                 const cnt = ripTables[r.id] ? Object.values(ripTables[r.id]).filter(v => v < Infinity && v > 0).length : 0;
                 return <AnimatedRouter key={r.id} r={r} isPath={isPath} isConn={isConn} isSel={isSel} isBroadcasting={isBroadcasting} cnt={cnt} T={T} handleRouterClick={handleRouterClick} handleRouterMouseDown={handleRouterMouseDown} svgRef={svgRef} pan={pan} setActiveTab={setActiveTab} mode={mode} updateRouter3DPos={updateRouter3DPos} />;
@@ -456,7 +416,7 @@ export default function MainView() {
     } = usePing(nextHopMap, animSpeed, setPackets, setActivePath, routers, links);
 
     const {
-        mode, setMode, connectFrom, pendingCost, setPendingCost,
+        mode, setMode, connectFrom, setConnectFrom, pendingCost, setPendingCost,
         selectedRouter, setSelectedRouter,
         multiSelected, setMultiSelected,
         isBoxSelectMode, setIsBoxSelectMode,
@@ -606,7 +566,7 @@ export default function MainView() {
                 {/* Tools card */}
                 <ToolsCard
                     mode={mode} setMode={setMode}
-                    connectFrom={connectFrom}
+                    connectFrom={connectFrom} setConnectFrom={setConnectFrom}
                     pendingCost={pendingCost} setPendingCost={setPendingCost}
                     T={T}
                 />
@@ -683,6 +643,7 @@ export default function MainView() {
                                 ripTables={ripTables} activePath={activePath} connectFrom={connectFrom} selectedRouter={selectedRouter}
                                 multiSelected={multiSelected} isBoxSelectMode={isBoxSelectMode} selectionBox={selectionBox} activeBroadcaster={activeBroadcaster}
                                 handleRouterClick={handleRouterClick} handleRouterMouseDown={handleRouterMouseDown} svgRef={svgRef} setActiveTab={setActiveTab}
+                                activeTab={activeTab}
                                 isPathLink={isPathLink} getPacketPos={getPacketPos} handleLinkClick={handleLinkClick} 
                                 editingLink={editingLink} setEditingLink={setEditingLink} updateLinkCost={updateLinkCost}
                                 dragging={dragging} handleCanvasClick={handleCanvasClick} handleCanvasMouseDown={handleCanvasMouseDown} handleMouseMove={handleMouseMove} handleMouseUp={handleMouseUp}

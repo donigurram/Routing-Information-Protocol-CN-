@@ -44,7 +44,7 @@ export function useRouting(routers, links, simRunning) {
             
             ls.filter(l => !l.failed && (l.a === r.id || l.b === r.id)).forEach(l => {
                 const neighborId = l.a === r.id ? l.b : l.a;
-                dist[r.id][neighborId] = l.cost;
+                dist[r.id][neighborId] = 1;
                 nextHop[r.id][neighborId] = neighborId;
             });
         });

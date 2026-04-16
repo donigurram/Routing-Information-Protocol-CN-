@@ -205,13 +205,13 @@ export default function ControlPanel({
                             </div>
                         )}
                         <Btn
-                            variant={simRunning ? "pause" : "sim"}
+                            variant={simRunning ? "pause" : (converged && routers.length > 1 ? "success" : "sim")}
                             onClick={canStart ? toggleSim : undefined}
                             disabled={!canStart}
                             style={{ fontSize: 16, marginBottom: 12 }}
                             T={T}
                         >
-                            {simRunning ? "⏸  PAUSE" : "▶  START SIMULATION"}
+                            {simRunning ? "⏸  PAUSE" : (converged && routers.length > 1 ? "⏹  END SIMULATION" : "▶  START SIMULATION")}
                         </Btn>
 
                         {/* Speed row */}

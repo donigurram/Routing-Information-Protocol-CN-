@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 
-function ToolsCard({ mode, setMode, connectFrom, pendingCost, setPendingCost, T }) {
+function ToolsCard({ mode, setMode, connectFrom, setConnectFrom, pendingCost, setPendingCost, T }) {
     const modes = [
         { k: "add", icon: "⊕", label: "Add", color: T.accent },
         { k: "connect", icon: "⟵⟶", label: "Link", color: "#7B2FBE" },
@@ -81,49 +81,21 @@ function ToolsCard({ mode, setMode, connectFrom, pendingCost, setPendingCost, T 
                 ))}
             </div>
 
-            {/* Link cost */}
-            <div style={{ padding: "8px 8px 6px" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: T.textFaint, letterSpacing: "1.2px", marginBottom: 5 }}>LINK COST</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <button
-                        onClick={() => setPendingCost(c => Math.max(1, c - 1))}
-                        style={{
-                            width: 32, height: 32, borderRadius: 6, border: `1.5px solid ${T.border}`,
-                            background: T.bg, cursor: "pointer", fontSize: 18, color: T.textMuted,
-                            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontWeight: 700,
-                        }}
-                    >−</button>
-                    <input
-                        type="number" min="1" max="15" value={pendingCost}
-                        onChange={e => setPendingCost(Math.max(1, Math.min(15, parseInt(e.target.value) || 1)))}
-                        style={{
-                            flex: 1, padding: "4px 6px", border: `1.5px solid ${T.border}`, borderRadius: 6,
-                            fontSize: 16, fontFamily: "'JetBrains Mono', monospace",
-                            color: T.text, background: T.surface, textAlign: "center", minWidth: 0,
-                        }}
-                    />
-                    <button
-                        onClick={() => setPendingCost(c => Math.min(15, c + 1))}
-                        style={{
-                            width: 32, height: 32, borderRadius: 6, border: `1.5px solid ${T.border}`,
-                            background: T.bg, cursor: "pointer", fontSize: 18, color: T.textMuted,
-                            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontWeight: 700,
-                        }}
-                    >+</button>
-                </div>
-                <div style={{ fontSize: 13, color: T.textFaint, textAlign: "center", marginTop: 4 }}>cost (1–15)</div>
-            </div>
+
 
             {/* Connect-from pill */}
             {connectFrom && (
-                <div style={{
-                    margin: "0 8px 8px", padding: "5px 8px",
-                    background: "#F3EEFF", borderRadius: 6,
-                    fontSize: 14, color: "#7B2FBE", fontWeight: 700, textAlign: "center",
-                    border: "1px solid #C4B5FD"
+                <button 
+                    onClick={() => setConnectFrom && setConnectFrom(null)}
+                    style={{
+                        margin: "0 8px 8px", padding: "5px 8px", width: "calc(100% - 16px)",
+                        background: "#F3EEFF", borderRadius: 6,
+                        fontSize: 14, color: "#7B2FBE", fontWeight: 700, textAlign: "center",
+                        border: "1px solid #C4B5FD", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center"
                 }}>
-                    ↳ FROM {connectFrom}
-                </div>
+                    <span>↳ FROM {connectFrom}</span>
+                    <span style={{ fontSize: 16, fontWeight: 900, opacity: 0.6 }}>✕</span>
+                </button>
             )}
         </div>
     );
